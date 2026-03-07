@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}CodeQuest - {{ project.name }}{% endblock %}
+
+{% block content %}
+<!-- Back Button & Header -->
+<a href="/" class="back-btn">&lt; Dashboard</a>
+
+<div class="project-header mt-1">
+  <span class="project-name">{{ project.name }}</span>
+  <span class="card-type {{ project.project_type|lower }}">{{ project.project_type }}</span>
+  <div class="badges">
+    {% if project.is_git_repo %}<span class="badge badge-git">GIT</span>{% endif %}
+    {% if project.has_github %}<span class="badge badge-github">GITHUB</span>{% endif %}
+    {% if project.is_claude_made %}<span class="badge badge-claude">CLAUDE</span>{% endif %}
+    {% if not project.is_git_repo %}<span class="badge badge-local">LOCAL</span>{% endif %}
+  </div>
+</div>
+
+<!-- Two-Column Layout -->
+<div class="detail-layout">
+  <!-- Left / Main Column -->
+  <div class="detail-main">
+    {% if readme_info and readme_info.quick_start_steps %}
+    <div class="panel">
+      <div class="panel-title">Quick Start</div>
+      <ol class="quick-start-steps">
+        {% for step in readme_info.quick_start_steps %}
+        <li>{{ step }}</li>
+        {% endfor %}
+      </ol>
+    </div>
+    {% endif %}
+
+    <div class="panel">
+      <div class="panel-title">README</div>
+      <div class="readme-content">
+        {% if readme_html %}
+        {{ readme_html|safe }}
+        {% else %}
+        <div class="empty-state">
+          <span class="empty-icon">&#x1F4C4;</span>
+          <div class="empty-text">No README found</div>
+          <div class="empty-hint">
+            Detected project type: {{ project.project_type }}<br>
+            Path: {{ project.path }}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Right / Sidebar Column -->
+  <div class="detail-sidebar">
+    <!-- Project Info -->
+    <div class="panel">
+      <div class="panel-title">Project Info</div>
+      <div class="settings-field">
+        <span class="settings-label">Path</span>
+        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--grey-light); word-break: break-all;">
+          {{ project.path }}
+        </div>
+      </div>
+      <div class="settings-field">
+        <span class="settings-label">Last Modified</span>
+        <div style="font-size: 0.8rem; color: var(--white);">
+          {{ project.last_modified_fmt }}
+        </div>
+      </div>
+      {% if project.git_remote_url %}
+      <div class="settings-field">
+        <span class="settings-label">Remote</span>
+        <div style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--cyan); word-break: break-all;">
+          {{ project.git_remote_url }}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Run Commands -->
+    <div class="panel">
+      <div class="panel-title">Run Commands</div>
+      {% if run_commands %}
+      <div class="run-commands">
+        {% for cmd in run_commands %}
+        <button
+          class="run-cmd-btn"
+          data-project="{{ project.name }}"
+          data-command="{{ cmd.command }}"
+        >
+          <span class="cmd-play">&#9654;</span>
+          {{ cmd.label }}
+          {% if cmd.source %}
+          <span class="cmd-source">{{ cmd.source }}</span>
+          {% endif %}
+        </button>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="color: var(--grey); font-size: 0.8rem;">
+        No run commands detected for this project.
+      </div>
+      {% endif %}
+
+      <!-- Console Output -->
+      <div class="console-header mt-1" style="display: none;" id="console-header">
+        <span id="console-header-text">Output</span>
+        <span class="text-grey">ESC to close</span>
+      </div>
+      <div class="console-output" id="console-output"></div>
+    </div>
+
+    <!-- AI Ask Box -->
+    <div class="panel">
+      <div class="panel-title">Ask AI</div>
+      <form id="ask-form" data-project="{{ project.name }}">
+        <div class="ask-box">
+          <input
+            type="text"
+            id="ask-input"
+            class="ask-input"
+            placeholder="Ask about this project..."
+            autocomplete="off"
+          >
+          <button type="submit" class="btn btn-magenta btn-sm">Ask</button>
+        </div>
+      </form>
+      <div class="ask-response" id="ask-response"></div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Show console header when console becomes visible
+  var consoleEl = document.getElementById('console-output');
+  var consoleHeaderEl = document.getElementById('console-header');
+  if (consoleEl && consoleHeaderEl) {
+    var observer = new MutationObserver(function() {
+      if (consoleEl.classList.contains('visible')) {
+        consoleHeaderEl.style.display = '';
+      }
+    });
+    observer.observe(consoleEl, { attributes: true, attributeFilter: ['class'] });
+  }
+</script>
+{% endblock %}

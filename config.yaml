@@ -1,0 +1,45 @@
+scan_paths:
+  - ~/hipaa-scanner
+  - ~/ssl-manager-cpanel
+  - ~/wordPRESSED
+  - ~/legal-case-aggregator
+  - ~/ai-surfer-toolkit
+  - ~/llm-chat-exporter-package
+  - ~/dark-factory
+  - ~/multi-mail-bridge
+  - ~/career-strategist
+  - ~/tech-pulse
+  - ~/turnstone
+
+auto_discover: true
+auto_discover_paths:
+  - ~/
+
+exclude_paths:
+  - ~/node_modules
+  - ~/snap
+  - ~/thinclient_drives
+  - ~/.cache
+  - ~/.local
+  - ~/cuda
+  - ~/lib
+  - ~/.vscode-server
+  - ~/.claude
+  - ~/SNNLA_audit
+  - ~/bankruptcy-creditor-info
+
+overrides: {}
+
+llm:
+  primary: claude
+  claude_model: claude-sonnet-4-6
+  offline_model: mistral:7b
+  fallback_model: gemma3:4b
+  force_backend: null
+
+web:
+  port: 8080
+  auto_open_browser: true
+
+theme: retro-green
+first_run_complete: false

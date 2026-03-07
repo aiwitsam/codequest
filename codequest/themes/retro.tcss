@@ -1,0 +1,375 @@
+/* CodeQuest Retro 8-bit Theme for Textual */
+
+Screen {
+    background: #0a0a0a;
+}
+
+/* ── Header ─────────────────────────────────────── */
+
+Header {
+    dock: top;
+    background: #111;
+    color: #39ff14;
+    text-style: bold;
+}
+
+Footer {
+    dock: bottom;
+    background: #111;
+    color: #888;
+}
+
+/* ── Welcome Screen ────────────────────────────── */
+
+#welcome-container {
+    align: center middle;
+    width: 100%;
+    height: 100%;
+}
+
+#welcome-art {
+    text-align: center;
+    color: #39ff14;
+    text-style: bold;
+    width: auto;
+    height: auto;
+    margin: 1 0;
+}
+
+#welcome-subtitle {
+    text-align: center;
+    color: #00ffff;
+    width: 100%;
+    margin: 1 0;
+}
+
+#welcome-instructions {
+    text-align: center;
+    color: #888;
+    width: 100%;
+    margin: 1 0;
+}
+
+#scan-progress {
+    width: 60;
+    margin: 1 auto;
+}
+
+.welcome-button {
+    margin: 1 2;
+    min-width: 20;
+    background: #1a1a1a;
+    color: #39ff14;
+    border: solid #39ff14;
+}
+
+.welcome-button:hover {
+    background: #39ff14;
+    color: #0a0a0a;
+}
+
+/* ── Dashboard ─────────────────────────────────── */
+
+#dashboard {
+    width: 100%;
+    height: 100%;
+}
+
+#search-bar {
+    dock: top;
+    height: 3;
+    padding: 0 1;
+    background: #111;
+}
+
+#search-input {
+    width: 100%;
+    background: #1a1a1a;
+    color: #39ff14;
+    border: solid #333;
+}
+
+#search-input:focus {
+    border: solid #39ff14;
+}
+
+#filter-bar {
+    dock: top;
+    height: 3;
+    padding: 0 1;
+    background: #0f0f0f;
+    layout: horizontal;
+}
+
+.filter-btn {
+    margin: 0 1;
+    min-width: 10;
+    background: #1a1a1a;
+    color: #888;
+    border: solid #333;
+    height: 3;
+}
+
+.filter-btn:hover {
+    color: #39ff14;
+    border: solid #39ff14;
+}
+
+.filter-btn.active {
+    color: #39ff14;
+    border: solid #39ff14;
+    background: #1a2a1a;
+}
+
+/* ── Project Table ─────────────────────────────── */
+
+#project-table {
+    width: 100%;
+    height: 1fr;
+}
+
+DataTable {
+    background: #0a0a0a;
+    color: #ccc;
+}
+
+DataTable > .datatable--header {
+    background: #111;
+    color: #39ff14;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: #1a2a1a;
+    color: #39ff14;
+}
+
+DataTable > .datatable--hover {
+    background: #151515;
+}
+
+/* ── Project Detail ────────────────────────────── */
+
+#detail-container {
+    width: 100%;
+    height: 100%;
+}
+
+#detail-header {
+    dock: top;
+    height: 3;
+    padding: 0 1;
+    background: #111;
+    color: #39ff14;
+    text-style: bold;
+}
+
+#readme-view {
+    width: 2fr;
+    height: 100%;
+    padding: 1;
+    background: #0a0a0a;
+    border-right: solid #333;
+}
+
+#sidebar {
+    width: 1fr;
+    min-width: 35;
+    height: 100%;
+    padding: 1;
+    background: #0f0f0f;
+}
+
+/* ── Run Commands Panel ────────────────────────── */
+
+.run-button {
+    width: 100%;
+    margin: 0 0 1 0;
+    background: #1a1a1a;
+    color: #00ffff;
+    border: solid #00ffff;
+}
+
+.run-button:hover {
+    background: #00ffff;
+    color: #0a0a0a;
+}
+
+#run-output {
+    width: 100%;
+    height: auto;
+    max-height: 20;
+    background: #111;
+    color: #39ff14;
+    border: solid #333;
+    padding: 1;
+    overflow-y: auto;
+}
+
+/* ── AI Ask Box ────────────────────────────────── */
+
+#ai-section {
+    margin-top: 1;
+}
+
+#ai-input {
+    width: 100%;
+    background: #1a1a1a;
+    color: #ff00ff;
+    border: solid #ff00ff;
+}
+
+#ai-input:focus {
+    border: solid #ff00ff;
+}
+
+#ai-send {
+    width: 100%;
+    margin-top: 1;
+    background: #1a1a1a;
+    color: #ff00ff;
+    border: solid #ff00ff;
+}
+
+#ai-send:hover {
+    background: #ff00ff;
+    color: #0a0a0a;
+}
+
+#ai-response {
+    width: 100%;
+    height: auto;
+    max-height: 15;
+    background: #111;
+    color: #ff00ff;
+    border: solid #333;
+    padding: 1;
+    margin-top: 1;
+    overflow-y: auto;
+}
+
+/* ── Settings Panel ────────────────────────────── */
+
+#settings-container {
+    width: 100%;
+    height: 100%;
+    padding: 1;
+}
+
+.setting-label {
+    color: #39ff14;
+    text-style: bold;
+    margin: 1 0 0 0;
+}
+
+.setting-value {
+    color: #ccc;
+    margin: 0 0 1 0;
+}
+
+#rescan-button {
+    margin: 1 0;
+    background: #1a1a1a;
+    color: #ffbf00;
+    border: solid #ffbf00;
+}
+
+#rescan-button:hover {
+    background: #ffbf00;
+    color: #0a0a0a;
+}
+
+/* ── Help Panel ────────────────────────────────── */
+
+#help-panel {
+    align: center middle;
+    width: 60;
+    height: auto;
+    max-height: 30;
+    background: #111;
+    border: solid #39ff14;
+    padding: 1 2;
+}
+
+#help-panel Static {
+    color: #ccc;
+}
+
+/* ── General ───────────────────────────────────── */
+
+.badge-git {
+    color: #5599ff;
+    text-style: bold;
+}
+
+.badge-github {
+    color: #ffffff;
+    text-style: bold;
+}
+
+.badge-claude {
+    color: #cc85ff;
+    text-style: bold;
+}
+
+.badge-local {
+    color: #888;
+}
+
+.type-python {
+    color: #39ff14;
+}
+
+.type-node {
+    color: #ffbf00;
+}
+
+.type-bash {
+    color: #00ffff;
+}
+
+.type-rust {
+    color: #ff4444;
+}
+
+.type-go {
+    color: #5599ff;
+}
+
+.type-static {
+    color: #ff00ff;
+}
+
+.type-unknown {
+    color: #888;
+}
+
+Markdown {
+    background: #0a0a0a;
+    margin: 0;
+    padding: 0;
+}
+
+MarkdownH1 {
+    color: #39ff14;
+    text-style: bold;
+}
+
+MarkdownH2 {
+    color: #00ffff;
+    text-style: bold;
+}
+
+MarkdownH3 {
+    color: #ffbf00;
+}
+
+MarkdownFence {
+    background: #111;
+    color: #39ff14;
+}
+
+MarkdownBlockQuote {
+    border-left: outer #333;
+    color: #888;
+}

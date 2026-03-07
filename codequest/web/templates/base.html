@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}CodeQuest{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/retro.css') }}">
+  <!-- Font loaded locally from /static/fonts/ for offline support -->
+</head>
+<body>
+
+  <!-- CRT Scanline Overlay -->
+  <div class="crt-overlay"></div>
+
+  <!-- Pixel Frame Border -->
+  <div class="pixel-frame"></div>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <a href="/" class="nav-brand">Code<span class="quest">Quest</span></a>
+
+    <div class="nav-links">
+      <a href="/">Dashboard</a>
+      <a href="/assistant">Assistant</a>
+      <a href="/settings">Settings</a>
+      <span class="nav-model">{{ active_model }}</span>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    {% if error_title is defined and error_title %}
+    <div class="empty-state">
+      <span class="empty-icon">?!</span>
+      <div class="empty-text">{{ error_title }}</div>
+      <div class="empty-hint">{{ error_message }}</div>
+      <a href="/" class="btn mt-2">Return to Dashboard</a>
+    </div>
+    {% else %}
+    {% block content %}{% endblock %}
+    {% endif %}
+  </div>
+
+  <!-- Footer Status Bar -->
+  <footer class="footer">
+    <span class="footer-text">
+      <span class="hl">CodeQuest</span> v{{ version }}
+    </span>
+    <span class="footer-text">
+      <span class="hl">{{ project_count }}</span> projects indexed
+    </span>
+    <span class="footer-text">
+      Model: <span class="hl">{{ active_model }}</span>
+    </span>
+  </footer>
+
+  <!-- Toast Container -->
+  <div class="toast-container"></div>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
