@@ -48,6 +48,15 @@
         {% endif %}
       </div>
     </div>
+
+    {% if project.is_git_repo %}
+    <div class="panel">
+      <div class="panel-title">Changelog</div>
+      <div id="changelog-container">
+        <span class="changelog-loading">Loading commits...</span>
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   <!-- Right / Sidebar Column -->
@@ -69,12 +78,72 @@
       </div>
       {% if project.git_remote_url %}
       <div class="settings-field">
-        <span class="settings-label">Remote</span>
+        <span class="settings-label">Remote <span id="visibility-badge"></span></span>
         <div style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--cyan); word-break: break-all;">
           {{ project.git_remote_url }}
         </div>
       </div>
       {% endif %}
+    </div>
+
+    <!-- Project Stats -->
+    <div class="panel">
+      <div class="panel-title">Stats</div>
+      <div id="stats-container">
+        <span class="stats-loading">Loading stats...</span>
+      </div>
+    </div>
+
+    <!-- Open In Editor -->
+    <div class="panel">
+      <div class="panel-title">Open In</div>
+      <div class="editor-buttons" id="editor-buttons">
+        <button class="editor-btn" id="btn-vscode" data-editor="code" onclick="openInEditor('{{ project.name }}', 'code')" disabled>
+          <span class="editor-icon">VS</span>
+          <span class="editor-name">VS Code</span>
+          <span class="editor-status" id="status-code">checking...</span>
+        </button>
+        <button class="editor-btn" id="btn-cursor" data-editor="cursor" onclick="openInEditor('{{ project.name }}', 'cursor')" disabled>
+          <span class="editor-icon">CR</span>
+          <span class="editor-name">Cursor</span>
+          <span class="editor-status" id="status-cursor">checking...</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Add to Project Manager -->
+    <div class="panel">
+      <div class="panel-title">Add To</div>
+      <div class="pm-buttons">
+        <button class="pm-btn pm-trello" onclick="pmAdd('trello')" title="Create Trello card">
+          <span class="pm-icon pm-icon-trello">T</span>
+          <span class="pm-label">Trello</span>
+        </button>
+        <button class="pm-btn pm-linear{% if not integrations.get('linear_team') %} pm-needs-config{% endif %}" onclick="pmAdd('linear')" title="{% if integrations.get('linear_team') %}Create Linear issue{% else %}Configure team in Settings{% endif %}">
+          <span class="pm-icon pm-icon-linear">L</span>
+          <span class="pm-label">Linear</span>
+        </button>
+        <button class="pm-btn pm-github{% if not project.has_github %} pm-disabled{% endif %}" onclick="pmAdd('github')" title="{% if project.has_github %}Create GitHub issue{% else %}No GitHub remote{% endif %}" {% if not project.has_github %}disabled{% endif %}>
+          <span class="pm-icon pm-icon-github">GH</span>
+          <span class="pm-label">GitHub</span>
+        </button>
+        <button class="pm-btn pm-jira{% if not integrations.get('jira_instance') %} pm-needs-config{% endif %}" onclick="pmAdd('jira')" title="{% if integrations.get('jira_instance') %}Create Jira issue{% else %}Configure instance in Settings{% endif %}">
+          <span class="pm-icon pm-icon-jira">J</span>
+          <span class="pm-label">Jira</span>
+        </button>
+        <button class="pm-btn pm-asana{% if not integrations.get('asana_workspace') %} pm-needs-config{% endif %}" onclick="pmAdd('asana')" title="{% if integrations.get('asana_workspace') %}Create Asana task{% else %}Configure workspace in Settings{% endif %}">
+          <span class="pm-icon pm-icon-asana">A</span>
+          <span class="pm-label">Asana</span>
+        </button>
+        <button class="pm-btn pm-notion" onclick="pmAdd('notion')" title="Copy for Notion">
+          <span class="pm-icon pm-icon-notion">N</span>
+          <span class="pm-label">Notion</span>
+        </button>
+        <button class="pm-btn pm-copy" onclick="pmAdd('copy')" title="Copy project info to clipboard">
+          <span class="pm-icon pm-icon-copy">CP</span>
+          <span class="pm-label">Copy</span>
+        </button>
+      </div>
     </div>
 
     <!-- Run Commands -->
@@ -110,9 +179,31 @@
       <div class="console-output" id="console-output"></div>
     </div>
 
+    <!-- Project Notes -->
+    <div class="panel">
+      <div class="panel-title">Project Notes</div>
+      <textarea
+        id="notes-textarea"
+        class="notes-textarea"
+        placeholder="Add notes about this project..."
+        data-project="{{ project.name }}"
+      >{{ project_notes }}</textarea>
+      <div class="notes-actions">
+        <span id="notes-status" class="notes-status">Saves to .codequest-notes.md</span>
+        <button id="notes-save-btn" class="btn btn-cyan btn-sm">Save</button>
+      </div>
+    </div>
+
     <!-- AI Ask Box -->
     <div class="panel">
-      <div class="panel-title">Ask AI</div>
+      <div class="panel-title" style="display: flex; align-items: center;">
+        Ask AI
+        <div class="project-model-picker">
+          <select id="project-model-select" class="project-model-select" title="Choose model for this project">
+            <option>Loading...</option>
+          </select>
+        </div>
+      </div>
       <form id="ask-form" data-project="{{ project.name }}">
         <div class="ask-box">
           <input
@@ -145,5 +236,114 @@
     });
     observer.observe(consoleEl, { attributes: true, attributeFilter: ['class'] });
   }
+
+  // PM integration config
+  var pmConfig = {
+    projectName: "{{ project.name }}",
+    projectPath: "{{ project.path }}",
+    projectType: "{{ project.project_type }}",
+    description: {{ project.description | tojson }},
+    gitRemote: "{{ project.git_remote_url | default('', true) }}",
+    linearTeam: "{{ integrations.get('linear_team', '') }}",
+    jiraInstance: "{{ integrations.get('jira_instance', '') }}",
+    jiraProject: "{{ integrations.get('jira_project', '') }}",
+    asanaWorkspace: "{{ integrations.get('asana_workspace', '') }}"
+  };
+
+  // Check available editors
+  checkEditors();
+
+  // Load project stats
+  (function() {
+    var statsContainer = document.getElementById("stats-container");
+    if (!statsContainer) return;
+    fetch("/api/stats/" + encodeURIComponent("{{ project.name }}"))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        clearElement(statsContainer);
+        if (data.error) {
+          statsContainer.appendChild(createTextSpan(data.error, "stats-error"));
+          return;
+        }
+
+        // Total files & LOC
+        var summaryDiv = document.createElement("div");
+        summaryDiv.className = "stats-summary";
+
+        var filesSpan = document.createElement("div");
+        filesSpan.className = "stats-metric";
+        var filesNum = document.createElement("span");
+        filesNum.className = "stats-number";
+        filesNum.textContent = (data.total_files || 0).toLocaleString();
+        filesSpan.appendChild(filesNum);
+        filesSpan.appendChild(document.createTextNode(" files"));
+        summaryDiv.appendChild(filesSpan);
+
+        var locSpan = document.createElement("div");
+        locSpan.className = "stats-metric";
+        var locNum = document.createElement("span");
+        locNum.className = "stats-number";
+        locNum.textContent = (data.total_loc || 0).toLocaleString();
+        locSpan.appendChild(locNum);
+        locSpan.appendChild(document.createTextNode(" LOC"));
+        summaryDiv.appendChild(locSpan);
+
+        var sizeSpan = document.createElement("div");
+        sizeSpan.className = "stats-metric";
+        var sizeNum = document.createElement("span");
+        sizeNum.className = "stats-number";
+        sizeNum.textContent = data.size || "?";
+        sizeSpan.appendChild(sizeNum);
+        sizeSpan.appendChild(document.createTextNode(" total"));
+        summaryDiv.appendChild(sizeSpan);
+
+        statsContainer.appendChild(summaryDiv);
+
+        // File type breakdown (CSS-only bar chart)
+        var fileCounts = data.file_counts || {};
+        var keys = Object.keys(fileCounts);
+        if (keys.length > 0) {
+          var maxCount = Math.max.apply(null, keys.map(function(k) { return fileCounts[k]; }));
+          var barChart = document.createElement("div");
+          barChart.className = "stats-bar-chart";
+          keys.forEach(function(ext) {
+            var row = document.createElement("div");
+            row.className = "stats-bar-row";
+            var label = document.createElement("span");
+            label.className = "stats-bar-label";
+            label.textContent = ext;
+            var barWrap = document.createElement("div");
+            barWrap.className = "stats-bar-wrap";
+            var bar = document.createElement("div");
+            bar.className = "stats-bar";
+            bar.style.width = (fileCounts[ext] / maxCount * 100) + "%";
+            barWrap.appendChild(bar);
+            var count = document.createElement("span");
+            count.className = "stats-bar-count";
+            count.textContent = fileCounts[ext];
+            row.appendChild(label);
+            row.appendChild(barWrap);
+            row.appendChild(count);
+            barChart.appendChild(row);
+          });
+          statsContainer.appendChild(barChart);
+        }
+      })
+      .catch(function() {
+        clearElement(statsContainer);
+        statsContainer.appendChild(createTextSpan("Failed to load stats", "stats-error"));
+      });
+  })();
+
+  // Load changelog
+  var changelogContainer = document.getElementById('changelog-container');
+  if (changelogContainer) {
+    loadChangelog("{{ project.name }}");
+  }
+
+  // Load repo visibility
+  {% if project.git_remote_url %}
+  loadVisibility("{{ project.name }}");
+  {% endif %}
 </script>
 {% endblock %}

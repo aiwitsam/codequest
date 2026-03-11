@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}CodeQuest - Connections{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Connections</h1>
+  <div class="page-actions">
+    <button class="btn btn-cyan btn-sm" id="conn-refresh-btn">Refresh</button>
+    <button class="btn btn-sm" id="conn-fit-btn">Fit View</button>
+  </div>
+</div>
+
+<div class="graph-layout">
+  <div class="graph-container" id="graph-container">
+    <div class="graph-loading" id="graph-loading">Analyzing project connections...</div>
+  </div>
+
+  <!-- Sidebar (appears on node click) -->
+  <div class="graph-sidebar" id="graph-sidebar" style="display: none;">
+    <div class="graph-sidebar-header">
+      <span class="graph-sidebar-title" id="sidebar-title">Project</span>
+      <button class="graph-sidebar-close" id="sidebar-close">&times;</button>
+    </div>
+    <div class="graph-sidebar-body" id="sidebar-body"></div>
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="graph-legend">
+  <span class="graph-legend-title">Legend:</span>
+  <span class="graph-legend-item"><span class="legend-dot" style="background: #4488ff;"></span> Python</span>
+  <span class="graph-legend-item"><span class="legend-dot" style="background: #44cc44;"></span> Node</span>
+  <span class="graph-legend-item"><span class="legend-dot" style="background: #ffcc00;"></span> Bash</span>
+  <span class="graph-legend-item"><span class="legend-dot" style="background: #ff6633;"></span> Rust</span>
+  <span class="graph-legend-item"><span class="legend-dot" style="background: #00cccc;"></span> Go</span>
+  <span class="graph-legend-item"><span class="legend-dot" style="background: #cc88ff;"></span> Static</span>
+  <span class="graph-legend-sep">|</span>
+  <span class="graph-legend-item"><span class="legend-line thick"></span> imports/submodule</span>
+  <span class="graph-legend-item"><span class="legend-line medium"></span> references/skill</span>
+  <span class="graph-legend-item"><span class="legend-line thin"></span> shared deps</span>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<script>
+(function() {
+  var container = document.getElementById("graph-container");
+  var loadingEl = document.getElementById("graph-loading");
+  var sidebar = document.getElementById("graph-sidebar");
+  var sidebarTitle = document.getElementById("sidebar-title");
+  var sidebarBody = document.getElementById("sidebar-body");
+  var sidebarClose = document.getElementById("sidebar-close");
+  var refreshBtn = document.getElementById("conn-refresh-btn");
+  var fitBtn = document.getElementById("conn-fit-btn");
+  var network = null;
+
+  function strengthToWidth(strength) {
+    if (strength >= 3) return 3;
+    if (strength >= 2) return 2;
+    return 1;
+  }
+
+  function renderGraph(data) {
+    loadingEl.style.display = "none";
+    var nodes = (data.nodes || []).map(function(n) {
+      return {
+        id: n.id,
+        label: n.label,
+        color: {
+          background: n.color || "#888",
+          border: n.color || "#888",
+          highlight: { background: "#fff", border: n.color || "#888" },
+        },
+        font: { color: "#e0e0e0", size: 11, face: "monospace" },
+        shape: "dot",
+        size: 18,
+        _type: n.type,
+        _group: n.group,
+      };
+    });
+
+    var edges = (data.edges || []).map(function(e, i) {
+      return {
+        id: "e" + i,
+        from: e.from,
+        to: e.to,
+        label: e.label,
+        width: strengthToWidth(e.strength),
+        color: { color: "rgba(102, 255, 153, 0.3)", highlight: "var(--green)" },
+        font: { color: "#666", size: 9, face: "monospace", strokeWidth: 0 },
+        smooth: { type: "continuous" },
+      };
+    });
+
+    var visData = {
+      nodes: new vis.DataSet(nodes),
+      edges: new vis.DataSet(edges),
+    };
+
+    var options = {
+      physics: {
+        barnesHut: {
+          gravitationalConstant: -3000,
+          centralGravity: 0.2,
+          springLength: 150,
+          springConstant: 0.04,
+          damping: 0.09,
+        },
+        stabilization: { iterations: 100 },
+      },
+      interaction: {
+        hover: true,
+        tooltipDelay: 200,
+        zoomView: true,
+        dragView: true,
+      },
+      layout: { improvedLayout: true },
+    };
+
+    network = new vis.Network(container, visData, options);
+
+    network.on("click", function(params) {
+      if (params.nodes.length > 0) {
+        var nodeId = params.nodes[0];
+        var node = visData.nodes.get(nodeId);
+        showSidebar(node);
+      } else {
+        sidebar.style.display = "none";
+      }
+    });
+  }
+
+  function showSidebar(node) {
+    sidebarTitle.textContent = node.label;
+    clearElement(sidebarBody);
+
+    var typeP = document.createElement("p");
+    typeP.className = "sidebar-field";
+    var typeLabel = document.createElement("span");
+    typeLabel.className = "sidebar-label";
+    typeLabel.textContent = "Type: ";
+    typeP.appendChild(typeLabel);
+    typeP.appendChild(document.createTextNode(node._type || "Unknown"));
+    sidebarBody.appendChild(typeP);
+
+    var link = document.createElement("a");
+    link.href = "/project/" + encodeURIComponent(node.id);
+    link.className = "btn btn-cyan btn-sm";
+    link.style.marginTop = "1rem";
+    link.style.display = "inline-block";
+    link.textContent = "View Project";
+    sidebarBody.appendChild(link);
+
+    sidebar.style.display = "";
+  }
+
+  sidebarClose.addEventListener("click", function() {
+    sidebar.style.display = "none";
+  });
+
+  function loadGraph(url) {
+    loadingEl.style.display = "";
+    fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        renderGraph(data);
+      })
+      .catch(function(err) {
+        loadingEl.textContent = "Failed to load connections: " + err.message;
+      });
+  }
+
+  refreshBtn.addEventListener("click", function() {
+    refreshBtn.disabled = true;
+    loadingEl.style.display = "";
+    loadingEl.textContent = "Re-analyzing connections...";
+    fetch("/api/connections/refresh", { method: "POST" })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        renderGraph(data);
+        refreshBtn.disabled = false;
+        showToast("Connections refreshed", "success");
+      })
+      .catch(function(err) {
+        loadingEl.textContent = "Failed: " + err.message;
+        refreshBtn.disabled = false;
+      });
+  });
+
+  fitBtn.addEventListener("click", function() {
+    if (network) network.fit();
+  });
+
+  loadGraph("/api/connections/data");
+})();
+</script>
+{% endblock %}

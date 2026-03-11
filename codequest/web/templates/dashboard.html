@@ -9,13 +9,13 @@
     type="text"
     id="search-input"
     class="search-input"
-    placeholder="Search projects..."
+    placeholder="Search projects... (press / to focus)"
     value="{{ search_query|default('', true) }}"
     autocomplete="off"
   >
 </div>
 
-<!-- Filter Buttons -->
+<!-- Filter Buttons + Sort + Tag Filter -->
 <div class="filter-bar">
   <button class="filter-btn active" data-type="all">All</button>
   <button class="filter-btn" data-type="Python">Python</button>
@@ -24,50 +24,117 @@
   <button class="filter-btn" data-type="Rust">Rust</button>
   <button class="filter-btn" data-type="Go">Go</button>
   <button class="filter-btn" data-type="Static">Static</button>
+
+  <select id="sort-select" class="sort-select" title="Sort projects">
+    <option value="favorites">Favorites First</option>
+    <option value="name-az">Name A-Z</option>
+    <option value="name-za">Name Z-A</option>
+    <option value="modified">Last Modified</option>
+    <option value="type">By Type</option>
+  </select>
+
   <button class="btn btn-amber btn-sm" id="rescan-btn">Rescan</button>
+</div>
+
+<!-- Tag Filter Bar -->
+{% if all_tags %}
+<div class="tag-filter-bar">
+  <span class="tag-filter-label">Tags:</span>
+  <button class="tag-filter-btn active" data-tag="all">All</button>
+  {% for tag in all_tags %}
+  <button class="tag-filter-btn" data-tag="{{ tag }}">{{ tag }}</button>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Bulk Action Bar (hidden by default) -->
+<div class="bulk-bar" id="bulk-bar" style="display: none;">
+  <span class="bulk-count" id="bulk-count">0 selected</span>
+  <button class="btn btn-cyan btn-sm" id="bulk-open-vscode">Open in VS Code</button>
+  <button class="btn btn-magenta btn-sm" id="bulk-tag-btn">Tag Selected</button>
+  <button class="btn btn-sm" id="bulk-clear">Clear Selection</button>
 </div>
 
 <!-- Project Grid -->
 {% if projects %}
-<div class="project-grid">
+<div class="project-grid" id="project-grid">
   {% for p in projects %}
-  <a href="/project/{{ p.name }}" class="project-card" data-type="{{ p.project_type }}">
-    <div class="card-header">
-      <span class="card-icon">
-        {%- if p.project_type == 'Python' -%}
-          &#x1F40D;
-        {%- elif p.project_type == 'Node' -%}
-          &#x26A1;
-        {%- elif p.project_type == 'Bash' -%}
-          &#x1F4BB;
-        {%- elif p.project_type == 'Rust' -%}
-          &#x2699;
-        {%- elif p.project_type == 'Go' -%}
-          &#x1F439;
-        {%- elif p.project_type == 'Static' -%}
-          &#x1F310;
-        {%- else -%}
-          &#x2753;
-        {%- endif -%}
-      </span>
-      <span class="card-name">{{ p.name }}</span>
-      <span class="card-type {{ p.project_type|lower }}">{{ p.project_type }}</span>
-    </div>
+  <div class="project-card"
+       data-type="{{ p.project_type }}"
+       data-name="{{ p.name }}"
+       data-modified="{{ p.last_modified }}"
+       data-favorite="{{ 'true' if p.is_favorite else 'false' }}"
+       data-is-git="{{ 'true' if p.is_git_repo else 'false' }}"
+       data-tags="{{ p.tags|join(',') }}"
+       tabindex="0">
 
-    <div class="card-description">
-      {{ p.description[:120] if p.description else 'No description' }}{% if p.description and p.description|length > 120 %}...{% endif %}
-    </div>
+    <!-- Bulk select checkbox -->
+    <label class="card-checkbox" onclick="event.stopPropagation();">
+      <input type="checkbox" class="bulk-check" data-name="{{ p.name }}">
+    </label>
 
-    <div class="card-meta">
-      <span class="card-date">{{ p.last_modified_fmt }}</span>
-      <div class="badges">
-        {% if p.is_git_repo %}<span class="badge badge-git">GIT</span>{% endif %}
-        {% if p.has_github %}<span class="badge badge-github">GITHUB</span>{% endif %}
-        {% if p.is_claude_made %}<span class="badge badge-claude">CLAUDE</span>{% endif %}
-        {% if not p.is_git_repo %}<span class="badge badge-local">LOCAL</span>{% endif %}
+    <!-- Favorite button -->
+    <button class="favorite-btn {{ 'active' if p.is_favorite }}"
+            data-name="{{ p.name }}"
+            title="Toggle favorite"
+            onclick="event.preventDefault(); event.stopPropagation(); toggleFavorite('{{ p.name }}', this);">
+      &#9733;
+    </button>
+
+    <a href="/project/{{ p.name }}" class="card-link">
+      <div class="card-header">
+        <span class="card-icon">
+          {%- if p.project_type == 'Python' -%}
+            &#x1F40D;
+          {%- elif p.project_type == 'Node' -%}
+            &#x26A1;
+          {%- elif p.project_type == 'Bash' -%}
+            &#x1F4BB;
+          {%- elif p.project_type == 'Rust' -%}
+            &#x2699;
+          {%- elif p.project_type == 'Go' -%}
+            &#x1F439;
+          {%- elif p.project_type == 'Static' -%}
+            &#x1F310;
+          {%- else -%}
+            &#x2753;
+          {%- endif -%}
+        </span>
+        <span class="card-name">{{ p.name }}</span>
+        <span class="card-type {{ p.project_type|lower }}">{{ p.project_type }}</span>
       </div>
-    </div>
-  </a>
+
+      <div class="card-description">
+        {{ p.description[:120] if p.description else 'No description' }}{% if p.description and p.description|length > 120 %}...{% endif %}
+      </div>
+
+      <!-- Tag chips -->
+      {% if p.tags %}
+      <div class="card-tags">
+        {% for tag in p.tags %}
+        <span class="tag-chip">{{ tag }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="card-meta">
+        <span class="card-date">{{ p.last_modified_fmt }}</span>
+        <div class="card-meta-right">
+          <!-- Git status dot (loaded async) -->
+          {% if p.is_git_repo %}
+          <span class="git-status-dot" id="git-dot-{{ p.name }}" title="Loading..."></span>
+          <span class="git-branch-label" id="git-branch-{{ p.name }}"></span>
+          {% endif %}
+          <div class="badges">
+            {% if p.is_git_repo %}<span class="badge badge-git">GIT</span>{% endif %}
+            {% if p.has_github %}<span class="badge badge-github">GITHUB</span>{% endif %}
+            {% if p.is_claude_made %}<span class="badge badge-claude">CLAUDE</span>{% endif %}
+            {% if not p.is_git_repo %}<span class="badge badge-local">LOCAL</span>{% endif %}
+          </div>
+        </div>
+      </div>
+    </a>
+  </div>
   {% endfor %}
 </div>
 {% else %}

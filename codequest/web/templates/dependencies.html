@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %}CodeQuest - Dependencies{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Dependencies</h1>
+  <div class="page-actions">
+    <select id="dep-filter-severity" class="sort-select" title="Filter by severity">
+      <option value="all">All Severities</option>
+      <option value="major">Major Only</option>
+      <option value="minor">Minor+</option>
+      <option value="patch">Patch+</option>
+    </select>
+    <select id="dep-filter-type" class="sort-select" title="Filter by project type">
+      <option value="all">All Types</option>
+      <option value="Python">Python</option>
+      <option value="Node">Node</option>
+    </select>
+    <button class="btn btn-cyan btn-sm" id="dep-scan-btn">Scan Now</button>
+  </div>
+</div>
+
+<!-- Summary Bar -->
+<div class="dep-summary-bar" id="dep-summary">
+  <span class="dep-summary-item">Loading...</span>
+</div>
+
+<!-- Scan Progress -->
+<div class="scan-progress" id="scan-progress" style="display: none;">
+  <div class="scan-progress-bar">
+    <div class="scan-progress-fill" id="scan-progress-fill"></div>
+  </div>
+  <span class="scan-progress-text" id="scan-progress-text">Scanning...</span>
+</div>
+
+<!-- Accordion -->
+<div class="dep-accordion" id="dep-accordion">
+  <div class="dep-loading">Click "Scan Now" to analyze dependencies, or loading cached data...</div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  var accordion = document.getElementById("dep-accordion");
+  var summaryBar = document.getElementById("dep-summary");
+  var scanBtn = document.getElementById("dep-scan-btn");
+  var progressEl = document.getElementById("scan-progress");
+  var progressFill = document.getElementById("scan-progress-fill");
+  var progressText = document.getElementById("scan-progress-text");
+  var filterSeverity = document.getElementById("dep-filter-severity");
+  var filterType = document.getElementById("dep-filter-type");
+
+  function buildTableHeader() {
+    var thead = document.createElement("thead");
+    var tr = document.createElement("tr");
+    ["Package", "Current", "Latest", "Severity", "Type"].forEach(function(text) {
+      var th = document.createElement("th");
+      th.textContent = text;
+      tr.appendChild(th);
+    });
+    thead.appendChild(tr);
+    return thead;
+  }
+
+  function renderDeps(data) {
+    clearElement(accordion);
+    var totalOutdated = 0;
+    var worstSeverity = "patch";
+    var projectCount = 0;
+    var sevOrder = {"major": 3, "minor": 2, "patch": 1, "unknown": 0};
+    var filterSev = filterSeverity.value;
+    var filterT = filterType.value;
+
+    var entries = Object.values(data).sort(function(a, b) {
+      return (b.total_outdated || 0) - (a.total_outdated || 0);
+    });
+
+    entries.forEach(function(proj) {
+      if (!proj.name) return;
+      if (filterT !== "all" && proj.project_type !== filterT) return;
+
+      var outdated = proj.outdated || [];
+      if (filterSev !== "all") {
+        outdated = outdated.filter(function(d) {
+          if (filterSev === "major") return d.severity === "major";
+          if (filterSev === "minor") return d.severity === "major" || d.severity === "minor";
+          return true;
+        });
+      }
+
+      totalOutdated += outdated.length;
+      projectCount++;
+
+      var sc = proj.severity_counts || {};
+      if (sc.major > 0 && sevOrder["major"] > sevOrder[worstSeverity]) worstSeverity = "major";
+      else if (sc.minor > 0 && sevOrder["minor"] > sevOrder[worstSeverity]) worstSeverity = "minor";
+
+      var section = document.createElement("div");
+      section.className = "dep-section";
+
+      var header = document.createElement("div");
+      header.className = "dep-section-header";
+      header.onclick = function() { section.classList.toggle("open"); };
+
+      var nameSpan = document.createElement("span");
+      nameSpan.className = "dep-project-name";
+      nameSpan.textContent = proj.name;
+      header.appendChild(nameSpan);
+
+      var typeSpan = document.createElement("span");
+      typeSpan.className = "card-type " + (proj.project_type || "").toLowerCase();
+      typeSpan.textContent = proj.project_type || "";
+      header.appendChild(typeSpan);
+
+      var countBadge = document.createElement("span");
+      countBadge.className = "dep-count-badge";
+      countBadge.textContent = outdated.length + " outdated";
+      header.appendChild(countBadge);
+
+      if (sc.major > 0) {
+        var dotMajor = document.createElement("span");
+        dotMajor.className = "dep-sev-dot severity-major";
+        dotMajor.title = sc.major + " major";
+        header.appendChild(dotMajor);
+      }
+      if (sc.minor > 0) {
+        var dotMinor = document.createElement("span");
+        dotMinor.className = "dep-sev-dot severity-minor";
+        dotMinor.title = sc.minor + " minor";
+        header.appendChild(dotMinor);
+      }
+
+      var arrow = document.createElement("span");
+      arrow.className = "dep-arrow";
+      arrow.textContent = "\u25B6";
+      header.appendChild(arrow);
+
+      section.appendChild(header);
+
+      var body = document.createElement("div");
+      body.className = "dep-section-body";
+
+      if (outdated.length === 0) {
+        var empty = document.createElement("div");
+        empty.className = "dep-empty";
+        empty.textContent = "All packages up to date!";
+        body.appendChild(empty);
+      } else {
+        var table = document.createElement("table");
+        table.className = "dep-table";
+        table.appendChild(buildTableHeader());
+        var tbody = document.createElement("tbody");
+        outdated.forEach(function(dep) {
+          var tr = document.createElement("tr");
+          tr.className = "dep-row";
+          var tdName = document.createElement("td");
+          tdName.textContent = dep.name;
+          var tdCur = document.createElement("td");
+          tdCur.textContent = dep.current;
+          var tdLat = document.createElement("td");
+          tdLat.textContent = dep.latest;
+          var tdSev = document.createElement("td");
+          var sevSpan = document.createElement("span");
+          sevSpan.className = "severity-label severity-" + dep.severity;
+          sevSpan.textContent = dep.severity;
+          tdSev.appendChild(sevSpan);
+          var tdType = document.createElement("td");
+          tdType.textContent = dep.type || "direct";
+          tr.appendChild(tdName);
+          tr.appendChild(tdCur);
+          tr.appendChild(tdLat);
+          tr.appendChild(tdSev);
+          tr.appendChild(tdType);
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        body.appendChild(table);
+      }
+
+      section.appendChild(body);
+      accordion.appendChild(section);
+    });
+
+    clearElement(summaryBar);
+    var s1 = document.createElement("span");
+    s1.className = "dep-summary-item";
+    s1.textContent = totalOutdated + " outdated packages across " + projectCount + " projects";
+    summaryBar.appendChild(s1);
+    if (worstSeverity !== "patch" || totalOutdated > 0) {
+      var s2 = document.createElement("span");
+      s2.className = "dep-summary-item severity-" + worstSeverity;
+      s2.textContent = "Worst: " + worstSeverity;
+      summaryBar.appendChild(s2);
+    }
+  }
+
+  function loadData() {
+    fetch("/api/deps/data")
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (Object.keys(data).length > 0) {
+          renderDeps(data);
+        }
+      })
+      .catch(function() {});
+  }
+
+  var pollTimer = null;
+  function pollScan() {
+    fetch("/api/deps/status")
+      .then(function(r) { return r.json(); })
+      .then(function(status) {
+        if (status.running) {
+          progressEl.style.display = "";
+          var pct = status.total > 0 ? (status.progress / status.total * 100) : 0;
+          progressFill.style.width = pct + "%";
+          progressText.textContent = "Scanning: " + (status.current || "...") + " (" + status.progress + "/" + status.total + ")";
+          pollTimer = setTimeout(pollScan, 1000);
+        } else {
+          progressEl.style.display = "none";
+          scanBtn.disabled = false;
+          loadData();
+        }
+      })
+      .catch(function() {
+        progressEl.style.display = "none";
+        scanBtn.disabled = false;
+      });
+  }
+
+  scanBtn.addEventListener("click", function() {
+    scanBtn.disabled = true;
+    progressEl.style.display = "";
+    progressFill.style.width = "0%";
+    progressText.textContent = "Starting scan...";
+
+    fetch("/api/deps/scan", { method: "POST" })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.started) {
+          pollScan();
+        } else {
+          showToast(data.error || "Scan failed", "error");
+          scanBtn.disabled = false;
+          progressEl.style.display = "none";
+        }
+      })
+      .catch(function(err) {
+        showToast("Network error: " + err.message, "error");
+        scanBtn.disabled = false;
+        progressEl.style.display = "none";
+      });
+  });
+
+  filterSeverity.addEventListener("change", loadData);
+  filterType.addEventListener("change", loadData);
+
+  loadData();
+})();
+</script>
+{% endblock %}

@@ -23,17 +23,36 @@ DEFAULT_CONFIG = {
     ],
     "overrides": {},
     "llm": {
-        "primary": "claude",
+        "primary": "ollama",
         "claude_model": "claude-sonnet-4-6",
-        "offline_model": "gemma3:4b",
-        "fallback_model": "llama3.2:3b",
+        "ollama_models": [
+            "mistral:7b",
+            "gemma2:9b",
+            "llama3:8b",
+            "deepseek-r1:7b",
+            "deephat-q5:latest",
+        ],
         "force_backend": None,
     },
     "web": {
         "port": 8080,
         "auto_open_browser": True,
     },
-    "theme": "retro-green",
+    "theme": "phosphor-green",
+    "theme_colors": {
+        "green": "#66ff99",
+        "cyan": "#00ffff",
+        "magenta": "#ff00ff",
+        "amber": "#ffbf00",
+    },
+    "integrations": {
+        "linear_team": "",
+        "jira_instance": "",
+        "jira_project": "",
+        "asana_workspace": "",
+    },
+    "favorites": [],
+    "tags": {},
     "first_run_complete": False,
 }
 

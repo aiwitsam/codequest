@@ -6,6 +6,23 @@
   <title>{% block title %}CodeQuest{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/retro.css') }}">
   <!-- Font loaded locally from /static/fonts/ for offline support -->
+  <!-- Theme color overrides from user config -->
+  <style>
+    :root {
+      --green: {{ theme.green }};
+      --green-dim: {{ theme.green_dim }};
+      --green-glow: {{ theme.green_glow }};
+      --cyan: {{ theme.cyan }};
+      --cyan-dim: {{ theme.cyan_dim }};
+      --cyan-glow: {{ theme.cyan_glow }};
+      --magenta: {{ theme.magenta }};
+      --magenta-dim: {{ theme.magenta_dim }};
+      --magenta-glow: {{ theme.magenta_glow }};
+      --amber: {{ theme.amber }};
+      --amber-dim: {{ theme.amber_dim }};
+      --amber-glow: {{ theme.amber_glow }};
+    }
+  </style>
 </head>
 <body>
 
@@ -21,9 +38,18 @@
 
     <div class="nav-links">
       <a href="/">Dashboard</a>
+      <a href="/dependencies">Dependencies</a>
+      <a href="/connections">Connections</a>
       <a href="/assistant">Assistant</a>
       <a href="/settings">Settings</a>
-      <span class="nav-model">{{ active_model }}</span>
+      <div class="model-switcher" id="model-switcher">
+        <button class="model-switcher-btn" id="model-switcher-btn" title="Switch LLM model">
+          <span class="model-dot active"></span>
+          <span class="model-switcher-name" id="model-switcher-name">{{ active_model }}</span>
+          <span class="model-switcher-arrow">&#x25BE;</span>
+        </button>
+        <div class="model-dropdown" id="model-dropdown"></div>
+      </div>
     </div>
   </nav>
 

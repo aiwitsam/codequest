@@ -4,72 +4,153 @@
 {% block content %}
 <div class="page-title">Settings</div>
 
+<!-- Theme Customizer -->
+<div class="panel mb-2">
+  <div class="panel-title">Theme Customizer</div>
+
+  <div class="theme-presets">
+    {% for name in theme_presets %}
+    <button
+      class="preset-btn{% if name == current_theme %} active{% endif %}"
+      data-preset="{{ name }}"
+      onclick="applyPreset('{{ name }}')"
+    >{{ name | replace('-', ' ') }}</button>
+    {% endfor %}
+    <button
+      class="preset-btn{% if current_theme == 'custom' %} active{% endif %}"
+      data-preset="custom"
+      onclick="applyPreset('custom')"
+    >Custom</button>
+  </div>
+
+  <div class="color-row">
+    <span class="color-label lbl-green">Primary</span>
+    <input type="color" class="color-picker" id="color-green" value="{{ theme_colors.green }}" onchange="previewTheme()">
+    <input type="text" class="color-hex" id="hex-green" value="{{ theme_colors.green }}" onchange="syncFromHex('green')">
+    <div class="color-swatch" id="swatch-green" style="background-color: {{ theme_colors.green }};"></div>
+  </div>
+
+  <div class="color-row">
+    <span class="color-label lbl-cyan">Secondary</span>
+    <input type="color" class="color-picker" id="color-cyan" value="{{ theme_colors.cyan }}" onchange="previewTheme()">
+    <input type="text" class="color-hex" id="hex-cyan" value="{{ theme_colors.cyan }}" onchange="syncFromHex('cyan')">
+    <div class="color-swatch" id="swatch-cyan" style="background-color: {{ theme_colors.cyan }};"></div>
+  </div>
+
+  <div class="color-row">
+    <span class="color-label lbl-magenta">Accent</span>
+    <input type="color" class="color-picker" id="color-magenta" value="{{ theme_colors.magenta }}" onchange="previewTheme()">
+    <input type="text" class="color-hex" id="hex-magenta" value="{{ theme_colors.magenta }}" onchange="syncFromHex('magenta')">
+    <div class="color-swatch" id="swatch-magenta" style="background-color: {{ theme_colors.magenta }};"></div>
+  </div>
+
+  <div class="color-row">
+    <span class="color-label lbl-amber">Highlight</span>
+    <input type="color" class="color-picker" id="color-amber" value="{{ theme_colors.amber }}" onchange="previewTheme()">
+    <input type="text" class="color-hex" id="hex-amber" value="{{ theme_colors.amber }}" onchange="syncFromHex('amber')">
+    <div class="color-swatch" id="swatch-amber" style="background-color: {{ theme_colors.amber }};"></div>
+  </div>
+
+  <div class="mt-1" style="display: flex; gap: 8px; align-items: center;">
+    <button class="btn btn-cyan" onclick="saveTheme()">Save Theme</button>
+    <span id="theme-status" class="notes-status"></span>
+  </div>
+</div>
+
 <div class="settings-grid">
   <!-- Scan Paths -->
   <div class="panel">
     <div class="panel-title">Scan Paths</div>
-    {% for path in config.get('scan_paths', []) %}
-    <div class="settings-field">
-      <input type="text" class="settings-value" value="{{ path }}" readonly>
-    </div>
-    {% endfor %}
-    {% if not config.get('scan_paths') %}
-    <div style="color: var(--grey); font-size: 0.8rem;">No explicit scan paths configured.</div>
-    {% endif %}
+    <p class="settings-section-note mb-1">Explicitly monitored project directories. Use ~ for home.</p>
 
-    <div class="settings-field mt-1">
-      <span class="settings-label">Auto Discover</span>
-      <div style="color: {% if config.get('auto_discover') %}var(--green){% else %}var(--red){% endif %}; font-size: 0.8rem;">
-        {{ 'Enabled' if config.get('auto_discover') else 'Disabled' }}
+    <div class="editable-list" id="scan-paths-list">
+      {% for path in config.get('scan_paths', []) %}
+      <div class="list-item">
+        <span class="list-item-text">{{ path }}</span>
+        <button class="list-item-remove" onclick="removeListItem(this)" title="Remove">&times;</button>
       </div>
-    </div>
-
-    {% if config.get('auto_discover_paths') %}
-    <div class="settings-field">
-      <span class="settings-label">Discovery Paths</span>
-      {% for p in config.get('auto_discover_paths', []) %}
-      <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--grey-light);">{{ p }}</div>
       {% endfor %}
     </div>
-    {% endif %}
+    <div class="list-add">
+      <input type="text" class="list-add-input" id="scan-path-input" placeholder="~/my-project">
+      <button class="btn btn-cyan btn-sm" onclick="addToList('scan-paths-list', 'scan-path-input')">Add</button>
+    </div>
+
+    <!-- Auto Discovery -->
+    <div class="toggle-row mt-2">
+      <span class="toggle-label">Auto Discovery</span>
+      <label class="toggle">
+        <input type="checkbox" id="auto-discover-toggle" {% if config.get('auto_discover') %}checked{% endif %} onchange="markUnsaved()">
+        <span class="toggle-track"></span>
+      </label>
+      <span class="toggle-state {% if config.get('auto_discover') %}on{% else %}off{% endif %}" id="auto-discover-state">
+        {{ 'ON' if config.get('auto_discover') else 'OFF' }}
+      </span>
+    </div>
+
+    <div class="settings-form-field">
+      <span class="settings-label">Discovery Paths</span>
+      <p class="settings-section-note mb-1">Base directories scanned 1-2 levels deep for projects.</p>
+      <div class="editable-list" id="discover-paths-list">
+        {% for p in config.get('auto_discover_paths', []) %}
+        <div class="list-item">
+          <span class="list-item-text">{{ p }}</span>
+          <button class="list-item-remove" onclick="removeListItem(this)" title="Remove">&times;</button>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="list-add">
+        <input type="text" class="list-add-input" id="discover-path-input" placeholder="~/projects">
+        <button class="btn btn-cyan btn-sm" onclick="addToList('discover-paths-list', 'discover-path-input')">Add</button>
+      </div>
+    </div>
   </div>
 
   <!-- LLM Configuration -->
   <div class="panel">
     <div class="panel-title">LLM Configuration</div>
-    <div class="settings-field">
+
+    <div class="settings-form-field">
       <span class="settings-label">Primary Backend</span>
-      <div style="color: var(--cyan); font-size: 0.8rem;">
-        {{ config.get('llm', {}).get('primary', 'claude') }}
-      </div>
+      <select class="form-select" id="llm-primary" onchange="markUnsaved()">
+        <option value="claude" {% if config.get('llm', {}).get('primary') == 'claude' %}selected{% endif %}>Claude (API)</option>
+        <option value="ollama" {% if config.get('llm', {}).get('primary') == 'ollama' %}selected{% endif %}>Ollama (Local)</option>
+      </select>
     </div>
-    <div class="settings-field">
+
+    <div class="settings-form-field">
       <span class="settings-label">Claude Model</span>
-      <div style="color: var(--magenta); font-size: 0.8rem;">
-        {{ config.get('llm', {}).get('claude_model', 'claude-sonnet-4-6') }}
-      </div>
+      <input type="text" class="form-input" id="llm-claude-model"
+             value="{{ config.get('llm', {}).get('claude_model', 'claude-sonnet-4-6') }}"
+             placeholder="claude-sonnet-4-6" onchange="markUnsaved()">
     </div>
-    <div class="settings-field">
-      <span class="settings-label">Offline Model (Ollama)</span>
-      <div style="color: var(--amber); font-size: 0.8rem;">
-        {{ config.get('llm', {}).get('offline_model', 'gemma3:4b') }}
-      </div>
+
+    <div class="settings-form-field">
+      <span class="settings-label">Ollama Model</span>
+      <input type="text" class="form-input" id="llm-offline-model"
+             value="{{ config.get('llm', {}).get('offline_model', 'gemma3:4b') }}"
+             placeholder="gemma3:4b" onchange="markUnsaved()">
     </div>
-    <div class="settings-field">
+
+    <div class="settings-form-field">
       <span class="settings-label">Fallback Model</span>
-      <div style="color: var(--grey-light); font-size: 0.8rem;">
-        {{ config.get('llm', {}).get('fallback_model', 'llama3.2:3b') }}
-      </div>
+      <input type="text" class="form-input" id="llm-fallback-model"
+             value="{{ config.get('llm', {}).get('fallback_model', 'llama3.2:3b') }}"
+             placeholder="llama3.2:3b" onchange="markUnsaved()">
     </div>
-    <div class="settings-field">
+
+    <div class="settings-form-field">
       <span class="settings-label">Force Backend</span>
-      <div style="color: var(--grey-light); font-size: 0.8rem;">
-        {{ config.get('llm', {}).get('force_backend') or 'None (auto-select)' }}
-      </div>
+      <select class="form-select" id="llm-force-backend" onchange="markUnsaved()">
+        <option value="" {% if not config.get('llm', {}).get('force_backend') %}selected{% endif %}>Auto-select</option>
+        <option value="claude" {% if config.get('llm', {}).get('force_backend') == 'claude' %}selected{% endif %}>Always Claude</option>
+        <option value="ollama" {% if config.get('llm', {}).get('force_backend') == 'ollama' %}selected{% endif %}>Always Ollama</option>
+      </select>
     </div>
-    <div class="settings-field">
+
+    <div class="settings-form-field">
       <span class="settings-label">Active Model</span>
-      <div style="color: var(--green); font-size: 0.8rem; text-shadow: 0 0 6px var(--green-glow);">
+      <div style="color: var(--green); font-size: 0.8rem; text-shadow: 0 0 6px var(--green-glow); padding: 8px 0;">
         {{ active_model }}
       </div>
     </div>
@@ -78,39 +159,400 @@
   <!-- Web Server -->
   <div class="panel">
     <div class="panel-title">Web Server</div>
-    <div class="settings-field">
+
+    <div class="settings-form-field">
       <span class="settings-label">Port</span>
-      <div style="color: var(--cyan); font-size: 0.8rem;">
-        {{ config.get('web', {}).get('port', 8080) }}
-      </div>
+      <input type="number" class="form-input" id="web-port"
+             value="{{ config.get('web', {}).get('port', 8080) }}"
+             min="1024" max="65535" onchange="markUnsaved()">
+      <p class="settings-section-note warning">Changing port requires a server restart.</p>
     </div>
-    <div class="settings-field">
-      <span class="settings-label">Theme</span>
-      <div style="color: var(--green); font-size: 0.8rem;">
-        {{ config.get('theme', 'retro-green') }}
-      </div>
+
+    <div class="toggle-row">
+      <span class="toggle-label">Auto Open Browser</span>
+      <label class="toggle">
+        <input type="checkbox" id="web-auto-open" {% if config.get('web', {}).get('auto_open_browser') %}checked{% endif %} onchange="markUnsaved()">
+        <span class="toggle-track"></span>
+      </label>
+      <span class="toggle-state {% if config.get('web', {}).get('auto_open_browser') %}on{% else %}off{% endif %}" id="auto-open-state">
+        {{ 'ON' if config.get('web', {}).get('auto_open_browser') else 'OFF' }}
+      </span>
     </div>
-    <div class="settings-field">
-      <span class="settings-label">Auto Open Browser</span>
-      <div style="color: var(--grey-light); font-size: 0.8rem;">
-        {{ 'Yes' if config.get('web', {}).get('auto_open_browser') else 'No' }}
+
+    <div class="settings-form-field">
+      <span class="settings-label">Active Theme</span>
+      <div style="color: var(--green); font-size: 0.8rem; padding: 8px 0;">
+        {{ config.get('theme', 'phosphor-green') | replace('-', ' ') | title }}
       </div>
     </div>
   </div>
 
-  <!-- Exclude Paths -->
+  <!-- Integrations -->
+  <div class="panel">
+    <div class="panel-title">Integrations</div>
+    <p class="settings-section-note mb-1">Connect project management tools. Leave blank to disable.</p>
+
+    <div class="settings-form-field">
+      <span class="settings-label">Linear Team Slug</span>
+      <input type="text" class="form-input" id="integ-linear-team"
+             value="{{ integrations.get('linear_team', '') }}"
+             placeholder="my-team" onchange="markUnsaved()">
+      <p class="settings-section-note">From your Linear URL: linear.app/<strong>my-team</strong></p>
+    </div>
+
+    <div class="settings-form-field">
+      <span class="settings-label">Jira Instance</span>
+      <input type="text" class="form-input" id="integ-jira-instance"
+             value="{{ integrations.get('jira_instance', '') }}"
+             placeholder="mycompany.atlassian.net" onchange="markUnsaved()">
+    </div>
+
+    <div class="settings-form-field">
+      <span class="settings-label">Jira Project Key</span>
+      <input type="text" class="form-input" id="integ-jira-project"
+             value="{{ integrations.get('jira_project', '') }}"
+             placeholder="PROJ" onchange="markUnsaved()">
+    </div>
+
+    <div class="settings-form-field">
+      <span class="settings-label">Asana Workspace ID</span>
+      <input type="text" class="form-input" id="integ-asana-workspace"
+             value="{{ integrations.get('asana_workspace', '') }}"
+             placeholder="1234567890" onchange="markUnsaved()">
+      <p class="settings-section-note">From your Asana URL: app.asana.com/0/<strong>ID</strong>/...</p>
+    </div>
+  </div>
+
+  <!-- Excluded Paths -->
   <div class="panel">
     <div class="panel-title">Excluded Paths</div>
-    {% for path in config.get('exclude_paths', []) %}
-    <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--grey); padding: 2px 0;">
-      {{ path }}
+    <p class="settings-section-note mb-1">Directories skipped during project discovery.</p>
+
+    <div class="editable-list" id="exclude-paths-list">
+      {% for path in config.get('exclude_paths', []) %}
+      <div class="list-item">
+        <span class="list-item-text">{{ path }}</span>
+        <button class="list-item-remove" onclick="removeListItem(this)" title="Remove">&times;</button>
+      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
+    <div class="list-add">
+      <input type="text" class="list-add-input" id="exclude-path-input" placeholder="~/node_modules">
+      <button class="btn btn-cyan btn-sm" onclick="addToList('exclude-paths-list', 'exclude-path-input')">Add</button>
+    </div>
   </div>
 </div>
 
-<!-- Actions -->
-<div class="mt-3">
+<!-- Sticky Save Bar -->
+<div class="save-bar" id="save-bar">
+  <button class="btn" id="save-all-btn" onclick="saveAllSettings()">Save All Settings</button>
   <button class="btn btn-amber" id="rescan-btn">Rescan Projects</button>
+  <span class="save-bar-status" id="save-status"></span>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  /* ── Theme logic ─────────────────────────────────────────── */
+  var themePresets = {{ theme_presets | tojson }};
+  var activePreset = "{{ current_theme }}";
+  var colorNames = ["green", "cyan", "magenta", "amber"];
+  var hasUnsaved = false;
+
+  function hexToRgb(hex) {
+    hex = hex.replace("#", "");
+    return {
+      r: parseInt(hex.substring(0, 2), 16),
+      g: parseInt(hex.substring(2, 4), 16),
+      b: parseInt(hex.substring(4, 6), 16)
+    };
+  }
+
+  function deriveDim(hex) {
+    var rgb = hexToRgb(hex);
+    var r = Math.floor(rgb.r * 0.38);
+    var g = Math.floor(rgb.g * 0.38);
+    var b = Math.floor(rgb.b * 0.38);
+    return "#" + r.toString(16).padStart(2, "0") + g.toString(16).padStart(2, "0") + b.toString(16).padStart(2, "0");
+  }
+
+  function deriveGlow(hex) {
+    var rgb = hexToRgb(hex);
+    return "rgba(" + rgb.r + ", " + rgb.g + ", " + rgb.b + ", 0.35)";
+  }
+
+  function getColors() {
+    var colors = {};
+    colorNames.forEach(function(name) {
+      colors[name] = document.getElementById("color-" + name).value;
+    });
+    return colors;
+  }
+
+  function setColors(colors) {
+    colorNames.forEach(function(name) {
+      if (colors[name]) {
+        document.getElementById("color-" + name).value = colors[name];
+        document.getElementById("hex-" + name).value = colors[name];
+        document.getElementById("swatch-" + name).style.backgroundColor = colors[name];
+      }
+    });
+  }
+
+  function applyPreset(name) {
+    activePreset = name;
+    document.querySelectorAll(".preset-btn").forEach(function(btn) {
+      btn.classList.toggle("active", btn.dataset.preset === name);
+    });
+    if (themePresets[name]) {
+      setColors(themePresets[name]);
+      previewTheme();
+    }
+  }
+
+  function syncFromHex(name) {
+    var hexInput = document.getElementById("hex-" + name);
+    var val = hexInput.value.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+      document.getElementById("color-" + name).value = val;
+      document.getElementById("swatch-" + name).style.backgroundColor = val;
+      previewTheme();
+    }
+  }
+
+  function previewTheme() {
+    var root = document.documentElement;
+    var colors = getColors();
+    colorNames.forEach(function(name) {
+      var hex = colors[name];
+      root.style.setProperty("--" + name, hex);
+      root.style.setProperty("--" + name + "-dim", deriveDim(hex));
+      root.style.setProperty("--" + name + "-glow", deriveGlow(hex));
+      document.getElementById("hex-" + name).value = hex;
+      document.getElementById("swatch-" + name).style.backgroundColor = hex;
+    });
+    var matchedPreset = null;
+    Object.keys(themePresets).forEach(function(pName) {
+      var p = themePresets[pName];
+      if (p.green === colors.green && p.cyan === colors.cyan && p.magenta === colors.magenta && p.amber === colors.amber) {
+        matchedPreset = pName;
+      }
+    });
+    activePreset = matchedPreset || "custom";
+    document.querySelectorAll(".preset-btn").forEach(function(btn) {
+      btn.classList.toggle("active", btn.dataset.preset === activePreset);
+    });
+  }
+
+  function saveTheme() {
+    var colors = getColors();
+    var statusEl = document.getElementById("theme-status");
+    if (statusEl) { statusEl.textContent = "Saving..."; statusEl.className = "notes-status"; }
+
+    fetch("/api/theme", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preset: activePreset, colors: colors }),
+    })
+      .then(function(resp) { return resp.json().then(function(d) { return { ok: resp.ok, data: d }; }); })
+      .then(function(result) {
+        if (result.ok) {
+          if (statusEl) { statusEl.textContent = "Theme saved!"; statusEl.className = "notes-status saved"; }
+          showToast("Theme saved", "success");
+          setTimeout(function() { if (statusEl) { statusEl.textContent = ""; statusEl.className = "notes-status"; } }, 2000);
+        } else {
+          if (statusEl) { statusEl.textContent = result.data.error || "Save failed"; statusEl.className = "notes-status error"; }
+          showToast("Failed to save theme", "error");
+        }
+      })
+      .catch(function(err) {
+        if (statusEl) { statusEl.textContent = "Network error"; statusEl.className = "notes-status error"; }
+        showToast("Network error: " + err.message, "error");
+      });
+  }
+
+  /* ── Editable List helpers ──────────────────────────────── */
+
+  function getListItems(listId) {
+    var list = document.getElementById(listId);
+    var items = [];
+    list.querySelectorAll(".list-item-text").forEach(function(el) {
+      items.push(el.textContent.trim());
+    });
+    return items;
+  }
+
+  function addToList(listId, inputId) {
+    var input = document.getElementById(inputId);
+    var val = input.value.trim();
+    if (!val) return;
+
+    var existing = getListItems(listId);
+    if (existing.indexOf(val) !== -1) {
+      showToast("Already in list", "info");
+      return;
+    }
+
+    var list = document.getElementById(listId);
+    var item = document.createElement("div");
+    item.className = "list-item";
+
+    var text = document.createElement("span");
+    text.className = "list-item-text";
+    text.textContent = val;
+    item.appendChild(text);
+
+    var btn = document.createElement("button");
+    btn.className = "list-item-remove";
+    btn.textContent = "\u00D7";
+    btn.title = "Remove";
+    btn.onclick = function() { removeListItem(btn); };
+    item.appendChild(btn);
+
+    list.appendChild(item);
+    input.value = "";
+    markUnsaved();
+  }
+
+  function removeListItem(btn) {
+    var item = btn.closest(".list-item");
+    item.style.opacity = "0";
+    item.style.transform = "translateX(20px)";
+    item.style.transition = "all 0.2s ease";
+    setTimeout(function() { item.remove(); markUnsaved(); }, 200);
+  }
+
+  /* ── Toggle state sync ─────────────────────────────────── */
+
+  function syncToggleStates() {
+    var toggles = [
+      { input: "auto-discover-toggle", label: "auto-discover-state" },
+      { input: "web-auto-open", label: "auto-open-state" }
+    ];
+    toggles.forEach(function(t) {
+      var el = document.getElementById(t.input);
+      var label = document.getElementById(t.label);
+      if (el && label) {
+        label.textContent = el.checked ? "ON" : "OFF";
+        label.className = "toggle-state " + (el.checked ? "on" : "off");
+      }
+    });
+  }
+
+  /* ── Unsaved changes tracking ──────────────────────────── */
+
+  function markUnsaved() {
+    hasUnsaved = true;
+    syncToggleStates();
+    var statusEl = document.getElementById("save-status");
+    if (statusEl) {
+      clearElement(statusEl);
+      var dot = document.createElement("span");
+      dot.className = "unsaved-dot";
+      statusEl.appendChild(dot);
+      statusEl.appendChild(document.createTextNode("Unsaved changes"));
+      statusEl.style.color = "var(--amber)";
+    }
+  }
+
+  function markSaved() {
+    hasUnsaved = false;
+    var statusEl = document.getElementById("save-status");
+    if (statusEl) {
+      statusEl.textContent = "All settings saved!";
+      statusEl.style.color = "var(--green)";
+      setTimeout(function() {
+        if (!hasUnsaved && statusEl) { statusEl.textContent = ""; }
+      }, 3000);
+    }
+  }
+
+  /* ── Save All Settings ─────────────────────────────────── */
+
+  function saveAllSettings() {
+    var statusEl = document.getElementById("save-status");
+    if (statusEl) {
+      statusEl.textContent = "Saving...";
+      statusEl.style.color = "var(--cyan)";
+    }
+
+    var payload = {
+      scan_paths: getListItems("scan-paths-list"),
+      auto_discover: document.getElementById("auto-discover-toggle").checked,
+      auto_discover_paths: getListItems("discover-paths-list"),
+      exclude_paths: getListItems("exclude-paths-list"),
+      llm: {
+        primary: document.getElementById("llm-primary").value,
+        claude_model: document.getElementById("llm-claude-model").value.trim(),
+        offline_model: document.getElementById("llm-offline-model").value.trim(),
+        fallback_model: document.getElementById("llm-fallback-model").value.trim(),
+        force_backend: document.getElementById("llm-force-backend").value || null
+      },
+      web: {
+        port: parseInt(document.getElementById("web-port").value, 10) || 8080,
+        auto_open_browser: document.getElementById("web-auto-open").checked
+      },
+      integrations: {
+        linear_team: document.getElementById("integ-linear-team").value.trim(),
+        jira_instance: document.getElementById("integ-jira-instance").value.trim(),
+        jira_project: document.getElementById("integ-jira-project").value.trim(),
+        asana_workspace: document.getElementById("integ-asana-workspace").value.trim()
+      }
+    };
+
+    fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then(function(resp) { return resp.json().then(function(d) { return { ok: resp.ok, data: d }; }); })
+      .then(function(result) {
+        if (result.ok) {
+          markSaved();
+          showToast("Settings saved", "success");
+        } else {
+          if (statusEl) {
+            statusEl.textContent = result.data.error || "Save failed";
+            statusEl.style.color = "var(--red)";
+          }
+          showToast("Failed to save settings", "error");
+        }
+      })
+      .catch(function(err) {
+        if (statusEl) {
+          statusEl.textContent = "Network error";
+          statusEl.style.color = "var(--red)";
+        }
+        showToast("Network error: " + err.message, "error");
+      });
+  }
+
+  /* ── Keyboard shortcut: Ctrl+S to save ─────────────────── */
+  document.addEventListener("keydown", function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+      e.preventDefault();
+      saveAllSettings();
+      saveTheme();
+    }
+  });
+
+  /* ── Warn before leaving with unsaved changes ──────────── */
+  window.addEventListener("beforeunload", function(e) {
+    if (hasUnsaved) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+  });
+
+  /* ── Add on Enter key for list inputs ──────────────────── */
+  document.querySelectorAll(".list-add-input").forEach(function(input) {
+    input.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        var addBtn = input.parentElement.querySelector(".btn");
+        if (addBtn) addBtn.click();
+      }
+    });
+  });
+</script>
 {% endblock %}
