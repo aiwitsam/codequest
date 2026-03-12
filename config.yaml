@@ -1,37 +1,30 @@
-scan_paths:
-  - ~/hipaa-scanner
-  - ~/ssl-manager-cpanel
-  - ~/wordPRESSED
-  - ~/legal-case-aggregator
-  - ~/ai-surfer-toolkit
-  - ~/llm-chat-exporter-package
-  - ~/dark-factory
-  - ~/multi-mail-bridge
-  - ~/career-strategist
-  - ~/tech-pulse
-  - ~/turnstone
+# CodeQuest Configuration
+# User overrides: ~/.codequest/config.yaml (auto-created on first run)
+
+scan_paths: []
+  # Add specific project paths here, e.g.:
+  # - ~/my-project
+  # - ~/work/api-server
 
 auto_discover: true
 auto_discover_paths:
   - ~/
 
 exclude_paths:
+  # Common system/tool directories to skip during auto-discovery
   - ~/node_modules
   - ~/snap
-  - ~/thinclient_drives
   - ~/.cache
   - ~/.local
-  - ~/cuda
-  - ~/lib
   - ~/.vscode-server
   - ~/.claude
-  - ~/SNNLA_audit
-  - ~/bankruptcy-creditor-info
+  # Add your own exclusions:
+  # - ~/some-private-dir
 
 overrides: {}
 
 llm:
-  primary: claude
+  primary: ollama
   claude_model: claude-sonnet-4-6
   offline_model: mistral:7b
   fallback_model: gemma3:4b
