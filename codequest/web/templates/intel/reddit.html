@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Reddit Intel - CodeQuest{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Reddit Intel</h1>
+  <div>
+    <button class="btn btn-magenta" id="scrape-btn" onclick="triggerScrape()">Scrape Now</button>
+  </div>
+</div>
+
+<!-- Stats Bar -->
+<div class="gpu-header">
+  <div class="gpu-stat">
+    <span class="gpu-stat-label">Total Posts</span>
+    <span id="stat-posts">{{ stats.total_posts }}</span>
+  </div>
+  <div class="gpu-stat">
+    <span class="gpu-stat-label">Intel Items</span>
+    <span id="stat-intel">{{ stats.total_intel }}</span>
+  </div>
+  <div class="gpu-stat">
+    <span class="gpu-stat-label">With CVEs</span>
+    <span id="stat-cves">{{ stats.posts_with_cves|default(0) }}</span>
+  </div>
+  <div class="gpu-stat">
+    <span class="gpu-stat-label">Unnotified</span>
+    <span id="stat-unnotified">{{ stats.unnotified|default(0) }}</span>
+  </div>
+</div>
+
+<!-- Search Bar -->
+<div class="reddit-search-bar">
+  <input type="text" id="reddit-search" class="form-input" placeholder="Search intel (FTS5)..." style="flex:1"
+         value="{{ query|default('') }}">
+  <select id="reddit-sub-filter" class="form-select">
+    <option value="">All subreddits</option>
+    {% for sub in subreddits %}
+    <option value="{{ sub }}">r/{{ sub }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-cyan" onclick="searchReddit()">Search</button>
+</div>
+
+<!-- Results Table -->
+<div id="reddit-results">
+  {% if results %}
+  <table class="reddit-result-table">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Subreddit</th>
+        <th>Severity</th>
+        <th>CVEs</th>
+        <th>Score</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in results %}
+      <tr>
+        <td>
+          {% if r.permalink %}
+          <a href="https://reddit.com{{ r.permalink }}" target="_blank" rel="noopener" style="color:var(--green);text-decoration:none">
+            {{ r.title[:80] }}{% if r.title|length > 80 %}...{% endif %}
+          </a>
+          {% else %}
+          {{ r.title[:80] }}{% if r.title|length > 80 %}...{% endif %}
+          {% endif %}
+        </td>
+        <td><span class="text-cyan">{{ r.subreddit }}</span></td>
+        <td>
+          {% if r.severity_signal and r.severity_signal != 'unknown' %}
+          <span class="severity-badge {{ r.severity_signal }}">{{ r.severity_signal }}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if r.cve_ids and r.cve_ids != '[]' %}
+            {% for cve in r.cve_ids if cve %}
+            <span class="cve-badge">{{ cve }}</span>
+            {% endfor %}
+          {% endif %}
+        </td>
+        <td>{{ r.community_score|default(0)|round(1) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% elif query %}
+  <div class="empty-state">
+    <span class="empty-icon">0</span>
+    <div class="empty-text">No results for "{{ query }}"</div>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <span class="empty-icon">&#128270;</span>
+    <div class="empty-text">Search security intel</div>
+    <div class="empty-hint">Or click "Scrape Now" to fetch fresh data</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/reddit.js') }}"></script>
+{% endblock %}

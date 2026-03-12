@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}AI Assistant - CodeQuest{% endblock %}
+
+{% block content %}
+<div class="chat-container">
+  <!-- Model & Project Selects -->
+  <div class="chat-controls">
+    <select id="model-select" class="chat-select">
+      {% for b in backends %}
+      <option value="{{ b.name }}" {% if b.active %}selected{% endif %}>
+        {{ b.name }}{% if b.available %} [OK]{% else %} [N/A]{% endif %}
+      </option>
+      {% endfor %}
+    </select>
+    <select id="project-select" class="chat-select">
+      <option value="">No project context</option>
+      {% for name in project_names %}
+      <option value="{{ name }}">{{ name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <!-- Messages Area -->
+  <div class="chat-messages" id="chat-messages">
+    <div class="chat-welcome">
+      <span class="welcome-icon">&#129302;</span>
+      <div class="welcome-text">AI Assistant Ready</div>
+      <div class="welcome-hint">Ask anything about your projects...</div>
+    </div>
+  </div>
+
+  <!-- Input Bar -->
+  <div class="chat-input-bar">
+    <input type="text" id="chat-input" class="chat-input" placeholder="Type your message...">
+    <button class="btn btn-magenta" id="chat-send-btn">Send</button>
+  </div>
+</div>
+{% endblock %}

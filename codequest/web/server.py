@@ -44,6 +44,12 @@ from codequest.connections import (
     save_cache as connections_save_cache,
     is_cache_fresh as connections_cache_fresh,
 )
+from codequest.ai import skills_scanner, ollama_hub, skill_discovery
+from codequest.intel import scoring as intel_scoring
+from codequest.intel import queue_utils
+from codequest.intel.reddit import RedditIntelWrapper
+from codequest.ops import services as ops_services
+from codequest.ops import security as ops_security
 
 
 # ---------------------------------------------------------------------------
@@ -389,11 +395,13 @@ def create_app() -> Flask:
     @app.context_processor
     def inject_globals():
         projects = get_projects()
+        config = get_config()
         return {
             "version": __version__,
             "project_count": len(projects),
             "active_model": model_selector.active_name,
             "theme": _get_theme_colors(),
+            "text_scale": config.get("text_scale", 1.3),
         }
 
     # ------------------------------------------------------------------
@@ -489,13 +497,19 @@ def create_app() -> Flask:
         )
 
     @app.route("/assistant")
-    def assistant():
-        """AI chat page."""
+    def assistant_redirect():
+        """Redirect old /assistant to /ai/assistant."""
+        from flask import redirect
+        return redirect("/ai/assistant", code=301)
+
+    @app.route("/ai/assistant")
+    def ai_assistant():
+        """AI chat page (moved to AI Toolkit)."""
         projects = get_projects()
         project_names = [p.name for p in projects]
         backends = model_selector.status()
         return render_template(
-            "assistant.html",
+            "ai/assistant.html",
             project_names=project_names,
             backends=backends,
         )
@@ -756,6 +770,14 @@ def create_app() -> Flask:
                 if key in data["integrations"] and isinstance(data["integrations"][key], str):
                     integ[key] = data["integrations"][key].strip()
             config["integrations"] = integ
+
+        if "text_scale" in data:
+            try:
+                scale = float(data["text_scale"])
+                if 0.8 <= scale <= 2.0:
+                    config["text_scale"] = round(scale, 1)
+            except (ValueError, TypeError):
+                pass
 
         save_config(config)
 
@@ -1083,6 +1105,425 @@ def create_app() -> Flask:
                 except (FileNotFoundError, OSError):
                     pass
         return jsonify({"opened": opened})
+
+    # ------------------------------------------------------------------
+    # AI Toolkit page routes
+    # ------------------------------------------------------------------
+
+    @app.route("/ai/skills")
+    def ai_skills():
+        """Skills & AI inventory page."""
+        skills = skills_scanner.scan_all()
+        return render_template("ai/skills.html", skills=skills)
+
+    @app.route("/ai/skills/<path:skill_name>")
+    def ai_skill_detail(skill_name):
+        """Skill detail page — shows full content for a skill."""
+        skills = skills_scanner.scan_all()
+        skill = None
+        for s in skills:
+            if s["name"] == skill_name:
+                skill = s
+                break
+        if not skill:
+            return render_template("base.html",
+                                   error_title="Skill Not Found",
+                                   error_message=f"No skill named '{skill_name}'"), 404
+
+        # Read full content for custom skills
+        content = ""
+        source_path = skill.get("source_path", "")
+        if source_path and Path(source_path).is_file():
+            try:
+                content = Path(source_path).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                content = "(Could not read source file)"
+
+        return render_template("ai/skill_detail.html", skill=skill, content=content)
+
+    @app.route("/ai/ollama")
+    def ai_ollama():
+        """Ollama Hub page."""
+        models = ollama_hub.list_models()
+        running = ollama_hub.running_models()
+        gpu = ollama_hub.gpu_info()
+        config = get_config()
+        ollama_url = config.get("ai", {}).get("ollama_url", "http://localhost:11434")
+        return render_template("ai/ollama.html",
+                               models=models, running=running, gpu=gpu,
+                               ollama_url=ollama_url)
+
+    @app.route("/ai/discover")
+    def ai_discover():
+        """Skill Discovery page."""
+        skills = skill_discovery.discover_skills()
+        return render_template("ai/discover.html", skills=skills)
+
+    @app.route("/ai/discover/<path:skill_name>")
+    def ai_discover_detail(skill_name):
+        """Discovered skill detail — shows README or content from source."""
+        skills = skill_discovery.discover_skills()
+        skill = None
+        for s in skills:
+            if s["name"] == skill_name:
+                skill = s
+                break
+        if not skill:
+            return render_template("base.html",
+                                   error_title="Skill Not Found",
+                                   error_message=f"No discoverable skill named '{skill_name}'"), 404
+
+        content = ""
+        source_path = skill.get("source_path", "")
+        if source_path:
+            sp = Path(source_path)
+            # Try README first, then any .md file in the dir
+            for candidate in [sp / "README.md", sp / "SKILL.md", sp / "readme.md"]:
+                if candidate.is_file():
+                    try:
+                        content = candidate.read_text(encoding="utf-8", errors="replace")
+                    except OSError:
+                        pass
+                    break
+            if not content and sp.is_dir():
+                # List files in the directory as a summary
+                try:
+                    files = sorted(f.name for f in sp.iterdir() if f.is_file())
+                    content = f"## Files in {sp.name}/\n\n" + "\n".join(f"- {f}" for f in files)
+                except OSError:
+                    content = "(Could not read directory)"
+
+        return render_template("ai/skill_detail.html", skill=skill, content=content)
+
+    # ------------------------------------------------------------------
+    # Intel Feed page routes
+    # ------------------------------------------------------------------
+
+    # Shared scrape cache for pulse
+    _pulse_cache = {"sections": {}}
+
+    @app.route("/intel/pulse")
+    def intel_pulse():
+        """Tech Pulse page."""
+        sections = _pulse_cache.get("sections", {})
+        return render_template("intel/pulse.html", sections=sections)
+
+    _reddit_wrapper = RedditIntelWrapper()
+
+    @app.route("/intel/reddit")
+    def intel_reddit():
+        """Reddit Intel page."""
+        query = request.args.get("q", "").strip()
+        sub = request.args.get("sub", "").strip()
+        stats = _reddit_wrapper.get_stats()
+
+        results = []
+        if query:
+            results = _reddit_wrapper.search(query, subreddit=sub or None)
+            # Parse cve_ids from JSON string
+            import json as _json
+            for r in results:
+                cve_str = r.get("cve_ids", "[]")
+                if isinstance(cve_str, str):
+                    try:
+                        r["cve_ids"] = _json.loads(cve_str)
+                    except (ValueError, TypeError):
+                        r["cve_ids"] = []
+
+        subreddits = list((stats.get("by_subreddit") or {}).keys())
+        return render_template("intel/reddit.html",
+                               stats=stats, results=results, query=query,
+                               subreddits=subreddits)
+
+    # ------------------------------------------------------------------
+    # Ops page routes
+    # ------------------------------------------------------------------
+
+    @app.route("/ops/services")
+    def ops_services_page():
+        """Services & Mesh page."""
+        services = ops_services.get_services()
+        mesh = ops_services.get_mesh_status()
+        return render_template("ops/services.html",
+                               services=services, mesh=mesh)
+
+    @app.route("/ops/security")
+    def ops_security_page():
+        """Security dashboard page."""
+        overview = ops_security.get_security_overview()
+        return render_template("ops/security.html", overview=overview)
+
+    # ------------------------------------------------------------------
+    # AI Toolkit API endpoints
+    # ------------------------------------------------------------------
+
+    @app.route("/api/ai/skills")
+    def api_ai_skills():
+        """All skills as JSON."""
+        return jsonify({"skills": skills_scanner.scan_all()})
+
+    @app.route("/api/ai/ollama/models")
+    def api_ollama_models():
+        """Installed Ollama models."""
+        return jsonify({"models": ollama_hub.list_models()})
+
+    @app.route("/api/ai/ollama/running")
+    def api_ollama_running():
+        """Running Ollama models."""
+        return jsonify({"models": ollama_hub.running_models()})
+
+    @app.route("/api/ai/ollama/pull", methods=["POST"])
+    def api_ollama_pull():
+        """Pull a model with SSE progress."""
+        from flask import Response
+        data = request.get_json(silent=True) or {}
+        name = data.get("name", "").strip()
+        if not name:
+            return jsonify({"error": "No model name"}), 400
+
+        def generate():
+            for progress in ollama_hub.pull_model(name):
+                import json as _json
+                yield f"data: {_json.dumps(progress)}\n\n"
+
+        return Response(generate(), mimetype="text/event-stream")
+
+    @app.route("/api/ai/ollama/delete", methods=["POST"])
+    def api_ollama_delete():
+        """Delete a model."""
+        data = request.get_json(silent=True) or {}
+        name = data.get("name", "").strip()
+        if not name:
+            return jsonify({"error": "No model name"}), 400
+        success = ollama_hub.delete_model(name)
+        return jsonify({"success": success})
+
+    @app.route("/api/ai/ollama/gpu")
+    def api_ollama_gpu():
+        """GPU info."""
+        return jsonify(ollama_hub.gpu_info())
+
+    @app.route("/api/ai/discover")
+    def api_ai_discover():
+        """Available skills with scores."""
+        return jsonify({"skills": skill_discovery.discover_skills()})
+
+    @app.route("/api/ai/discover/install", methods=["POST"])
+    def api_ai_discover_install():
+        """Install a skill."""
+        data = request.get_json(silent=True) or {}
+        source_path = data.get("source_path", "")
+        name = data.get("name", "")
+        if not source_path:
+            return jsonify({"error": "No source path"}), 400
+        success, msg = skill_discovery.install_skill(source_path, name or None)
+        return jsonify({"success": success, "message": msg, "error": "" if success else msg})
+
+    # ------------------------------------------------------------------
+    # Intel Feed API endpoints
+    # ------------------------------------------------------------------
+
+    @app.route("/api/intel/pulse/generate", methods=["POST"])
+    def api_pulse_generate():
+        """Trigger scrape + score."""
+        try:
+            from codequest.intel.sources.github_trending import fetch_trending, fetch_topic_repos
+            from codequest.intel.sources.huggingface import fetch_trending_models, fetch_trending_spaces
+            from codequest.intel.sources.ollama_models import fetch_ollama_models
+            from codequest.intel.sources.claude_updates import fetch_claude_updates
+
+            sections = {}
+
+            trending = fetch_trending()
+            if trending:
+                sections["GitHub Trending"] = trending
+
+            topics = fetch_topic_repos()
+            if topics:
+                sections["GitHub Topics (AI/ML)"] = topics
+
+            hf_models = fetch_trending_models()
+            if hf_models:
+                sections["Hugging Face Models"] = hf_models
+
+            hf_spaces = fetch_trending_spaces()
+            if hf_spaces:
+                sections["Hugging Face Spaces"] = hf_spaces
+
+            ollama_items = fetch_ollama_models()
+            if ollama_items:
+                sections["Ollama Library"] = ollama_items
+
+            claude_items = fetch_claude_updates()
+            if claude_items:
+                sections["Claude / Anthropic"] = claude_items
+
+            # Score all items
+            total = 0
+            for section_name, items in sections.items():
+                for item in items:
+                    heat, rec, reason = intel_scoring.score_item(item)
+                    item["_heat"] = heat
+                    item["_rec"] = rec
+                    item["_reason"] = reason
+                    item["_hook"] = intel_scoring.generate_social_hook(item)
+                    total += 1
+
+            _pulse_cache["sections"] = sections
+
+            return jsonify({"success": True, "total_items": total})
+        except Exception as exc:
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+    @app.route("/api/intel/pulse/latest")
+    def api_pulse_latest():
+        """Latest digest data."""
+        return jsonify(_pulse_cache.get("sections", {}))
+
+    @app.route("/api/intel/pulse/chat", methods=["POST"])
+    def api_pulse_chat():
+        """Proxy question to AI about tech pulse items."""
+        data = request.get_json(silent=True) or {}
+        question = data.get("question", "").strip()
+        if not question:
+            return jsonify({"error": "No question"}), 400
+
+        # Build context from cached pulse data
+        context_parts = ["Tech Pulse Digest Summary:"]
+        for section_name, items in _pulse_cache.get("sections", {}).items():
+            context_parts.append(f"\n{section_name}:")
+            for item in items[:5]:
+                context_parts.append(f"  - {item.get('name', '')} ({item.get('_heat', '')}): {item.get('description', '')[:100]}")
+
+        context = "\n".join(context_parts)
+
+        try:
+            answer = model_selector.ask(question, context)
+            return jsonify({"answer": answer, "model": model_selector.active_name})
+        except Exception as exc:
+            return jsonify({"answer": f"Error: {exc}", "model": "error"}), 500
+
+    @app.route("/api/intel/pulse/flag", methods=["POST"])
+    def api_pulse_flag():
+        """Flag item for Linear queue."""
+        data = request.get_json(silent=True) or {}
+        section = data.get("section", "")
+        index = data.get("index", 0)
+
+        sections = _pulse_cache.get("sections", {})
+        items = sections.get(section, [])
+        if index < 0 or index >= len(items):
+            return jsonify({"error": "Invalid index"}), 400
+
+        item = items[index]
+        queue = queue_utils.load_queue(queue_utils.LINEAR_QUEUE)
+        queue.append({
+            "name": item.get("name", ""),
+            "url": item.get("url", ""),
+            "heat": item.get("_heat", ""),
+            "rec": item.get("_rec", ""),
+            "source": section,
+        })
+        queue_utils.save_queue(queue_utils.LINEAR_QUEUE, queue)
+        return jsonify({"message": f"Flagged: {item.get('name', '')}"})
+
+    @app.route("/api/intel/pulse/save-nd", methods=["POST"])
+    def api_pulse_save_nd():
+        """Save item to ND queue."""
+        data = request.get_json(silent=True) or {}
+        section = data.get("section", "")
+        index = data.get("index", 0)
+
+        sections = _pulse_cache.get("sections", {})
+        items = sections.get(section, [])
+        if index < 0 or index >= len(items):
+            return jsonify({"error": "Invalid index"}), 400
+
+        item = items[index]
+        payload = queue_utils.format_nd_payload({
+            "name": item.get("name", ""),
+            "url": item.get("url", ""),
+            "heat": item.get("_heat", ""),
+            "rec": item.get("_rec", ""),
+            "source": section,
+            "description": item.get("description", ""),
+        })
+        queue = queue_utils.load_queue(queue_utils.ND_QUEUE)
+        queue.append({"text": payload, "name": item.get("name", "")})
+        queue_utils.save_queue(queue_utils.ND_QUEUE, queue)
+        return jsonify({"message": f"Saved to ND: {item.get('name', '')}"})
+
+    # ------------------------------------------------------------------
+    # Reddit Intel API endpoints
+    # ------------------------------------------------------------------
+
+    @app.route("/api/intel/reddit/search")
+    def api_reddit_search():
+        """FTS5 search."""
+        q = request.args.get("q", "").strip()
+        sub = request.args.get("sub", "").strip()
+        limit = min(int(request.args.get("limit", 20)), 100)
+        results = _reddit_wrapper.search(q, subreddit=sub or None, limit=limit)
+        return jsonify({"results": results})
+
+    @app.route("/api/intel/reddit/stats")
+    def api_reddit_stats():
+        """Scrape stats."""
+        return jsonify(_reddit_wrapper.get_stats())
+
+    @app.route("/api/intel/reddit/scrape", methods=["POST"])
+    def api_reddit_scrape():
+        """Trigger on-demand scrape."""
+        _reddit_wrapper.trigger_scrape()
+        return jsonify({"started": True})
+
+    @app.route("/api/intel/reddit/cves")
+    def api_reddit_cves():
+        """CVE listing."""
+        return jsonify({"cves": _reddit_wrapper.get_cves()})
+
+    # ------------------------------------------------------------------
+    # Ops API endpoints
+    # ------------------------------------------------------------------
+
+    @app.route("/api/ops/services")
+    def api_ops_services():
+        """Service status JSON."""
+        return jsonify({"services": ops_services.get_services()})
+
+    @app.route("/api/ops/services/<name>/restart", methods=["POST"])
+    def api_ops_restart(name):
+        """Restart a service."""
+        success, msg = ops_services.restart_service(name)
+        return jsonify({"success": success, "message": msg, "error": "" if success else msg})
+
+    @app.route("/api/ops/mesh")
+    def api_ops_mesh():
+        """Mesh sync status."""
+        return jsonify(ops_services.get_mesh_status())
+
+    @app.route("/api/ops/security/findings")
+    def api_ops_findings():
+        """Findings JSON."""
+        severity = request.args.get("severity")
+        status = request.args.get("status")
+        return jsonify({"findings": ops_security.get_findings(severity=severity, status=status)})
+
+    @app.route("/api/ops/security/stats")
+    def api_ops_security_stats():
+        """Severity breakdowns."""
+        overview = ops_security.get_security_overview()
+        return jsonify({
+            "severity_breakdown": overview["severity_breakdown"],
+            "status_breakdown": overview["status_breakdown"],
+            "total_findings": overview["total_findings"],
+        })
+
+    @app.route("/api/ops/security/reports")
+    def api_ops_security_reports():
+        """Report file list."""
+        overview = ops_security.get_security_overview()
+        return jsonify({"reports": overview["reports"]})
 
     # ------------------------------------------------------------------
     # Error handlers

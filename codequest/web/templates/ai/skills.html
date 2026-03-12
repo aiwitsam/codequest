@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Skills & AI - CodeQuest{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Skills &amp; AI</h1>
+  <span class="text-grey">{{ skills|length }} items discovered</span>
+</div>
+
+<div class="skill-filter-bar">
+  <button class="skill-filter-btn active" onclick="filterSkills('all')" data-filter="all">All</button>
+  <button class="skill-filter-btn" onclick="filterSkills('custom')" data-filter="custom">Custom</button>
+  <button class="skill-filter-btn" onclick="filterSkills('official')" data-filter="official">Official</button>
+  <button class="skill-filter-btn" onclick="filterSkills('community')" data-filter="community">Community</button>
+  <button class="skill-filter-btn" onclick="filterSkills('mcp')" data-filter="mcp">MCP Servers</button>
+  <button class="skill-filter-btn" onclick="filterSkills('hook')" data-filter="hook">Hooks</button>
+</div>
+
+<div class="project-grid" id="skills-grid">
+  {% for skill in skills %}
+  <a href="/ai/skills/{{ skill.name | urlencode }}" class="project-card clickable-card" data-type="{{ skill.type }}" tabindex="0">
+    <div class="card-header">
+      <span class="card-name">{{ skill.name }}</span>
+      <span class="skill-type-badge {{ skill.type }}">{{ skill.type }}</span>
+    </div>
+    {% if skill.description %}
+    <div class="card-description">{{ skill.description[:150] }}</div>
+    {% endif %}
+    <div class="card-meta">
+      {% if skill.version %}
+      <span class="text-grey">v{{ skill.version }}</span>
+      {% endif %}
+      {% if skill.related_project %}
+      <span class="text-cyan">{{ skill.related_project }}</span>
+      {% endif %}
+    </div>
+    {% if skill.triggers %}
+    <div class="card-tags">
+      {% for t in skill.triggers[:3] %}
+      <span class="tag-chip">{{ t[:40] }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </a>
+  {% endfor %}
+</div>
+
+{% if not skills %}
+<div class="empty-state">
+  <span class="empty-icon">AI</span>
+  <div class="empty-text">No skills found</div>
+  <div class="empty-hint">Check ~/.claude/skills/ and ~/.claude/settings.json</div>
+</div>
+{% endif %}
+
+<script>
+function filterSkills(type) {
+  document.querySelectorAll('.skill-filter-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.filter === type);
+  });
+  document.querySelectorAll('#skills-grid .project-card').forEach(function(card) {
+    card.style.display = (type === 'all' || card.dataset.type === type) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

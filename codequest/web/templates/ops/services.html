@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Services & Mesh - CodeQuest{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Services &amp; Mesh</h1>
+  <div>
+    <button class="btn btn-sm btn-cyan" onclick="refreshServices()">Refresh</button>
+  </div>
+</div>
+
+<!-- Mesh Status -->
+<div class="gpu-header">
+  <div class="gpu-stat">
+    <span class="gpu-stat-label">Mesh</span>
+    <span class="status-dot {{ 'up' if mesh.connected else 'down' }}"></span>
+    {{ mesh.mesh_host }} — {{ 'Connected' if mesh.connected else 'Disconnected' }}
+  </div>
+  {% if mesh.peers is defined %}
+  <div class="gpu-stat">
+    <span class="gpu-stat-label">Peers</span>
+    {{ mesh.peers }}
+  </div>
+  {% endif %}
+</div>
+
+<div class="services-layout">
+  <!-- Local Services -->
+  <div>
+    <div class="services-column-title">WSL2 Local</div>
+    {% for svc in services %}
+    <div class="service-card" id="svc-{{ svc.name }}">
+      <div class="service-info">
+        <div class="service-name">
+          <span class="status-dot {{ svc.health.status }}"></span>
+          {{ svc.name }}
+        </div>
+        <div class="service-meta">
+          {% if svc.port %}Port {{ svc.port }}{% endif %}
+          {% if svc.description %} | {{ svc.description }}{% endif %}
+          <br>
+          systemctl: {{ svc.systemctl_status }}
+          {% if svc.health.response_time_ms %} | {{ svc.health.response_time_ms }}ms{% endif %}
+        </div>
+      </div>
+      <div>
+        <button class="btn btn-sm" onclick="restartService('{{ svc.name }}')">Restart</button>
+      </div>
+    </div>
+    {% endfor %}
+    {% if not services %}
+    <div class="text-grey" style="padding:12px;font-family:var(--font-mono);font-size:0.7rem">
+      No services configured. Check ops.service_ports in Settings.
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Remote / Mesh Services -->
+  <div>
+    <div class="services-column-title">Ubuntu Remote ({{ mesh.mesh_host }})</div>
+    <div class="text-grey" style="padding:12px;font-family:var(--font-mono);font-size:0.7rem">
+      {% if mesh.connected %}
+      Remote service monitoring available via mesh-status.sh
+      <pre style="color:var(--green);margin-top:8px">{{ mesh.output }}</pre>
+      {% else %}
+      Mesh not connected. Remote services unavailable.
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/services.js') }}"></script>
+{% endblock %}

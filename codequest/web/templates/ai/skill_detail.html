@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}{{ skill.name }} - CodeQuest{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{{ '/ai/skills' if skill.type != 'discoverable' else '/ai/discover' }}" class="btn btn-sm" style="margin-right: 12px;">&larr; Back</a>
+    <h1 class="page-title" style="display: inline;">{{ skill.name }}</h1>
+  </div>
+  <span class="skill-type-badge {{ skill.type }}">{{ skill.type }}</span>
+</div>
+
+<div class="settings-grid" style="grid-template-columns: 1fr 300px;">
+  <!-- Main Content -->
+  <div class="panel">
+    <div class="panel-title">Details</div>
+
+    {% if skill.description %}
+    <div style="margin-bottom: 16px; color: var(--green); line-height: 1.6;">
+      {{ skill.description }}
+    </div>
+    {% endif %}
+
+    <div class="skill-detail-meta">
+      {% if skill.version %}
+      <div class="skill-detail-row">
+        <span class="text-cyan">Version:</span>
+        <span>{{ skill.version }}</span>
+      </div>
+      {% endif %}
+      {% if skill.related_project %}
+      <div class="skill-detail-row">
+        <span class="text-cyan">Related Project:</span>
+        <span>{{ skill.related_project }}</span>
+      </div>
+      {% endif %}
+      {% if skill.source_path %}
+      <div class="skill-detail-row">
+        <span class="text-cyan">Source:</span>
+        <span style="font-family: var(--font-mono); font-size: 0.7rem; word-break: break-all;">{{ skill.source_path }}</span>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if skill.triggers %}
+    <div style="margin-top: 16px;">
+      <span class="text-cyan" style="display: block; margin-bottom: 8px;">Triggers:</span>
+      <div class="card-tags">
+        {% for t in skill.triggers %}
+        <span class="tag-chip">{{ t }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if skill.get('heat') %}
+    <div style="margin-top: 16px;">
+      <span class="heat-badge {{ skill.heat|lower }}">{{ skill.heat }}</span>
+      <span class="rec-badge">{{ skill.rec }}</span>
+      {% if skill.reason %}
+      <span class="text-grey" style="margin-left: 8px;">{{ skill.reason }}</span>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Sidebar -->
+  <div class="panel">
+    <div class="panel-title">Quick Info</div>
+    <div class="skill-detail-sidebar">
+      <div class="skill-detail-row">
+        <span class="text-cyan">Type:</span>
+        <span class="skill-type-badge {{ skill.type }}">{{ skill.type }}</span>
+      </div>
+      <div class="skill-detail-row">
+        <span class="text-cyan">Name:</span>
+        <span>{{ skill.name }}</span>
+      </div>
+      {% if skill.get('heat') %}
+      <div class="skill-detail-row">
+        <span class="text-cyan">Heat:</span>
+        <span class="heat-badge {{ skill.heat|lower }}">{{ skill.heat }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if content %}
+<div class="panel mt-2">
+  <div class="panel-title">Source Content</div>
+  <pre class="skill-source-content">{{ content }}</pre>
+</div>
+{% endif %}
+{% endblock %}

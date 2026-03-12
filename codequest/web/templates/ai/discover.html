@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Skill Discovery - CodeQuest{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Skill Discovery</h1>
+  <span class="text-grey">{{ skills|length }} available skills</span>
+</div>
+
+<div class="skill-filter-bar">
+  <button class="skill-filter-btn active" onclick="filterDiscover('all')" data-filter="all">All</button>
+  <button class="skill-filter-btn" onclick="filterDiscover('Hot')" data-filter="Hot">Hot</button>
+  <button class="skill-filter-btn" onclick="filterDiscover('Warm')" data-filter="Warm">Warm</button>
+  <button class="skill-filter-btn" onclick="filterDiscover('Watch')" data-filter="Watch">Watch</button>
+</div>
+
+<div id="discover-list">
+  {% for skill in skills %}
+  <div class="pulse-card" data-heat="{{ skill.heat }}">
+    <a href="/ai/discover/{{ skill.name | urlencode }}" class="pulse-card-header clickable-card-link">
+      <div>
+        <span class="pulse-card-name">{{ skill.name }}</span>
+        <span class="text-grey" style="font-family:var(--font-mono);font-size:0.65rem;margin-left:8px">{{ skill.source }}</span>
+      </div>
+      <div>
+        <span class="heat-badge {{ skill.heat|lower }}">{{ skill.heat }}</span>
+        <span class="rec-badge">{{ skill.rec }}</span>
+      </div>
+    </a>
+    {% if skill.description %}
+    <div class="pulse-card-desc">{{ skill.description }}</div>
+    {% endif %}
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span class="text-grey" style="font-family:var(--font-mono);font-size:0.6rem">{{ skill.reason }}</span>
+      <button class="btn btn-sm btn-cyan" onclick="event.stopPropagation();installSkill('{{ skill.source_path }}', '{{ skill.name }}')">Install</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if not skills %}
+<div class="empty-state">
+  <span class="empty-icon">?</span>
+  <div class="empty-text">No discoverable skills found</div>
+  <div class="empty-hint">Check ~/trailofbits-skills/ and ~/communitytools/</div>
+</div>
+{% endif %}
+
+<script>
+function filterDiscover(heat) {
+  document.querySelectorAll('.skill-filter-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.filter === heat);
+  });
+  document.querySelectorAll('#discover-list .pulse-card').forEach(function(card) {
+    card.style.display = (heat === 'all' || card.dataset.heat === heat) ? '' : 'none';
+  });
+}
+
+function installSkill(sourcePath, name) {
+  if (!confirm('Install skill "' + name + '"?')) return;
+  fetch('/api/ai/discover/install', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({source_path: sourcePath, name: name})
+  })
+  .then(function(resp) { return resp.json(); })
+  .then(function(data) {
+    if (data.success) {
+      showToast('Installed ' + name, 'success');
+      setTimeout(function() { location.reload(); }, 1000);
+    } else {
+      showToast(data.error || 'Install failed', 'error');
+    }
+  })
+  .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
+}
+</script>
+{% endblock %}

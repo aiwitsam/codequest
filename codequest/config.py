@@ -38,6 +38,7 @@ DEFAULT_CONFIG = {
         "port": 8080,
         "auto_open_browser": True,
     },
+    "text_scale": 1.3,
     "theme": "phosphor-green",
     "theme_colors": {
         "green": "#66ff99",
@@ -50,6 +51,33 @@ DEFAULT_CONFIG = {
         "jira_instance": "",
         "jira_project": "",
         "asana_workspace": "",
+    },
+    "ai": {
+        "skills_annotations": {},
+        "ollama_url": "http://localhost:11434",
+    },
+    "intel": {
+        "my_stack": {
+            "languages": ["python", "javascript", "typescript", "bash", "html", "css"],
+            "frameworks": ["next.js", "react", "node", "express", "flask", "fastapi", "django"],
+            "tools": ["ollama", "claude", "anthropic", "openai", "huggingface", "docker",
+                      "git", "npm", "pip", "selenium", "playwright", "puppeteer"],
+            "domains": ["security", "scanning", "automation", "web scraping", "ai", "ml",
+                        "llm", "wordpress", "ssl", "email", "chrome extension", "cli"],
+        },
+        "hot_keywords": ["claude", "anthropic", "ollama", "llm", "agent", "mcp", "rag",
+                         "fine-tune", "quantization", "gguf", "security", "scanner",
+                         "automation", "scraping", "chrome extension"],
+    },
+    "ops": {
+        "service_ports": {
+            "turnstone": 8081,
+            "tech-pulse": 7799,
+            "codequest": 8080,
+            "total-recall": 8899,
+            "whatsapp-bridge": 3847,
+        },
+        "mesh_host": "ubuntu-desktop",
     },
     "favorites": [],
     "tags": {},

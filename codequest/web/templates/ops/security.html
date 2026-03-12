@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Security - CodeQuest{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Security Dashboard</h1>
+  <span class="text-grey">{{ overview.total_findings }} findings</span>
+</div>
+
+<!-- Severity Stats -->
+<div class="security-stats">
+  <div class="stat-card">
+    <div class="stat-card-value critical">{{ overview.severity_breakdown.critical }}</div>
+    <div class="stat-card-label">Critical</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-value high">{{ overview.severity_breakdown.high }}</div>
+    <div class="stat-card-label">High</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-value medium">{{ overview.severity_breakdown.medium }}</div>
+    <div class="stat-card-label">Medium</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-value">{{ overview.severity_breakdown.low }}</div>
+    <div class="stat-card-label">Low</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-value" style="color:var(--grey-light)">{{ overview.severity_breakdown.info }}</div>
+    <div class="stat-card-label">Info</div>
+  </div>
+</div>
+
+<!-- Severity Bar -->
+{% set total = overview.total_findings if overview.total_findings > 0 else 1 %}
+<div class="severity-bar">
+  <div class="severity-bar-segment critical" style="width:{{ (overview.severity_breakdown.critical / total * 100)|round(1) }}%"></div>
+  <div class="severity-bar-segment high" style="width:{{ (overview.severity_breakdown.high / total * 100)|round(1) }}%"></div>
+  <div class="severity-bar-segment medium" style="width:{{ (overview.severity_breakdown.medium / total * 100)|round(1) }}%"></div>
+  <div class="severity-bar-segment low" style="width:{{ (overview.severity_breakdown.low / total * 100)|round(1) }}%"></div>
+  <div class="severity-bar-segment info" style="width:{{ (overview.severity_breakdown.info / total * 100)|round(1) }}%"></div>
+</div>
+
+<!-- Findings Table -->
+{% if overview.findings %}
+<div class="panel">
+  <div class="panel-title">Recent Findings</div>
+  <table class="findings-table">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Severity</th>
+        <th>Status</th>
+        <th>Plugin</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in overview.findings[:50] %}
+      <tr>
+        <td>{{ f.title[:60] }}{% if f.title|length > 60 %}...{% endif %}</td>
+        <td><span class="severity-badge {{ (f.severity or 'info')|lower }}">{{ f.severity or 'info' }}</span></td>
+        <td>{{ f.status or 'new' }}</td>
+        <td class="text-cyan">{{ f.plugin_name or '' }}</td>
+        <td class="text-grey">{{ f.created_at or '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- Recent Scans -->
+{% if overview.recent_scans %}
+<div class="panel" style="margin-top:20px">
+  <div class="panel-title">Recent Scans</div>
+  {% for scan in overview.recent_scans[:10] %}
+  <div class="service-card">
+    <div class="service-info">
+      <div class="service-name">
+        <span class="status-dot {{ 'up' if scan.status == 'completed' else 'unknown' }}"></span>
+        {{ scan.target or 'Unknown target' }}
+      </div>
+      <div class="service-meta">
+        {{ scan.status }} | {{ scan.started_at or '' }}
+        {% if scan.plugin_count %} | {{ scan.plugin_count }} plugins{% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Security Tools -->
+{% if overview.tools %}
+<div class="panel" style="margin-top:20px">
+  <div class="panel-title">Security Tools</div>
+  <div class="project-grid">
+    {% for name, tool in overview.tools.items() %}
+    <div class="project-card">
+      <div class="card-header">
+        <span class="card-name">{{ name }}</span>
+        <span class="status-dot up"></span>
+      </div>
+      <div class="card-meta">
+        <span class="text-grey">{{ tool.path }}</span>
+        {% if tool.output_count %}<span class="text-cyan">{{ tool.output_count }} outputs</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Reports -->
+{% if overview.reports %}
+<div class="panel" style="margin-top:20px">
+  <div class="panel-title">Security Reports</div>
+  {% for report in overview.reports[:10] %}
+  <div class="service-card">
+    <div class="service-info">
+      <div class="service-name">{{ report.filename }}</div>
+      <div class="service-meta">{{ (report.size / 1024)|round(1) }} KB</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if not overview.findings and not overview.recent_scans %}
+<div class="empty-state">
+  <span class="empty-icon">&#128274;</span>
+  <div class="empty-text">No security data</div>
+  <div class="empty-hint">Run a scan in Turnstone to populate this dashboard</div>
+</div>
+{% endif %}
+{% endblock %}

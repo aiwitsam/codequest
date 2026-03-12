@@ -21,8 +21,16 @@
       --amber: {{ theme.amber }};
       --amber-dim: {{ theme.amber_dim }};
       --amber-glow: {{ theme.amber_glow }};
+      --text-scale: {{ text_scale }};
     }
   </style>
+  <script>
+    /* Apply saved text scale from localStorage immediately to prevent flash */
+    (function() {
+      var saved = localStorage.getItem('cq-text-scale');
+      if (saved) document.documentElement.style.setProperty('--text-scale', saved);
+    })();
+  </script>
 </head>
 <body>
 
@@ -37,11 +45,43 @@
     <a href="/" class="nav-brand">Code<span class="quest">Quest</span></a>
 
     <div class="nav-links">
-      <a href="/">Dashboard</a>
-      <a href="/dependencies">Dependencies</a>
-      <a href="/connections">Connections</a>
-      <a href="/assistant">Assistant</a>
-      <a href="/settings">Settings</a>
+      <a href="/" {% if request.path == '/' %}class="active"{% endif %}>Dashboard</a>
+      <a href="/dependencies" {% if request.path == '/dependencies' %}class="active"{% endif %}>Dependencies</a>
+      <a href="/connections" {% if request.path == '/connections' %}class="active"{% endif %}>Connections</a>
+
+      <div class="nav-dropdown">
+        <button class="nav-dropdown-btn {% if request.path.startswith('/ai/') %}active{% endif %}">
+          AI Toolkit <span class="nav-dropdown-arrow">&#x25BE;</span>
+        </button>
+        <div class="nav-dropdown-menu">
+          <a href="/ai/skills">Skills &amp; AI</a>
+          <a href="/ai/discover">Skill Discovery</a>
+          <a href="/ai/ollama">Ollama Hub</a>
+          <a href="/ai/assistant">Assistant</a>
+        </div>
+      </div>
+
+      <div class="nav-dropdown">
+        <button class="nav-dropdown-btn {% if request.path.startswith('/intel/') %}active{% endif %}">
+          Intel Feed <span class="nav-dropdown-arrow">&#x25BE;</span>
+        </button>
+        <div class="nav-dropdown-menu">
+          <a href="/intel/pulse">Tech Pulse</a>
+          <a href="/intel/reddit">Reddit Intel</a>
+        </div>
+      </div>
+
+      <div class="nav-dropdown">
+        <button class="nav-dropdown-btn {% if request.path.startswith('/ops/') %}active{% endif %}">
+          Ops <span class="nav-dropdown-arrow">&#x25BE;</span>
+        </button>
+        <div class="nav-dropdown-menu">
+          <a href="/ops/services">Services &amp; Mesh</a>
+          <a href="/ops/security">Security</a>
+        </div>
+      </div>
+
+      <a href="/settings" {% if request.path == '/settings' %}class="active"{% endif %}>Settings</a>
       <div class="model-switcher" id="model-switcher">
         <button class="model-switcher-btn" id="model-switcher-btn" title="Switch LLM model">
           <span class="model-dot active"></span>

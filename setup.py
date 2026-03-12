@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="codequest",
-    version="1.0.0",
+    version="2.0.0",
     description="Project Command Center - 8-bit retro project dashboard",
     packages=find_packages(),
     include_package_data=True,
@@ -11,6 +11,7 @@ setup(
             "themes/*.tcss",
             "web/static/**/*",
             "web/templates/*.html",
+            "web/templates/**/*.html",
         ]
     },
     install_requires=[
@@ -19,6 +20,8 @@ setup(
         "pyyaml>=6.0",
         "requests>=2.31.0",
         "anthropic>=0.20.0",
+        "beautifulsoup4>=4.12.0",
+        "lxml>=5.0.0",
     ],
     entry_points={
         "console_scripts": [

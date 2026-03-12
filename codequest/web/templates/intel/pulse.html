@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Tech Pulse - CodeQuest{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Tech Pulse</h1>
+  <div>
+    <button class="btn btn-magenta" id="generate-btn" onclick="generatePulse()">Generate Digest</button>
+  </div>
+</div>
+
+<div class="pulse-layout">
+  <div class="pulse-main">
+    <div id="pulse-loading" style="display:none" class="text-grey">
+      <span class="console-loading">Scraping sources</span>
+    </div>
+
+    <div id="pulse-content">
+      {% if sections %}
+        {% for section_name, items in sections.items() %}
+        <div class="pulse-section">
+          <div class="pulse-section-title" onclick="toggleSection(this)">
+            {{ section_name }} ({{ items|length }})
+          </div>
+          <div class="pulse-section-content">
+            {% for item in items %}
+            <div class="pulse-card">
+              <div class="pulse-card-header">
+                <div class="pulse-card-name">
+                  {% if item.url %}
+                  <a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.name }}</a>
+                  {% else %}
+                  {{ item.name }}
+                  {% endif %}
+                </div>
+                <div>
+                  <span class="heat-badge {{ item._heat|lower }}">{{ item._heat }}</span>
+                  <span class="rec-badge">{{ item._rec }}</span>
+                </div>
+              </div>
+              <div class="pulse-card-desc">{{ item.description[:200] }}</div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="text-grey" style="font-family:var(--font-mono);font-size:0.6rem">
+                  {{ item._reason }}
+                  {% if item.stars %} | {{ item.stars|int }} stars{% endif %}
+                  {% if item.downloads %} | {{ item.downloads|int }} downloads{% endif %}
+                </span>
+                <div class="pulse-card-actions">
+                  <button class="btn btn-sm btn-amber" onclick="flagItem({{ loop.index0 }}, '{{ section_name }}')">Flag</button>
+                  <button class="btn btn-sm btn-cyan" onclick="saveNd({{ loop.index0 }}, '{{ section_name }}')">Save ND</button>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+      <div class="empty-state">
+        <span class="empty-icon">&#9889;</span>
+        <div class="empty-text">No digest yet</div>
+        <div class="empty-hint">Click "Generate Digest" to scrape sources</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="pulse-sidebar">
+    <div class="pulse-chat-panel">
+      <div class="pulse-chat-title">AI Analysis</div>
+      <div class="pulse-chat-messages" id="pulse-chat-messages">
+        <span class="text-grey" style="font-family:var(--font-mono);font-size:0.65rem">Ask about any item...</span>
+      </div>
+      <div class="pulse-chat-input">
+        <input type="text" id="pulse-chat-input" class="form-input" placeholder="Ask about this tech..." style="flex:1">
+        <button class="btn btn-sm btn-magenta" onclick="sendPulseChat()">Ask</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleSection(el) {
+  var content = el.nextElementSibling;
+  content.classList.toggle('collapsed');
+}
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/pulse.js') }}"></script>
+{% endblock %}

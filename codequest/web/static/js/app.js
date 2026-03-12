@@ -1214,11 +1214,43 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Active nav link highlighting
   var currentPath = window.location.pathname;
-  document.querySelectorAll(".nav-links a").forEach(function (link) {
+  document.querySelectorAll(".nav-links > a").forEach(function (link) {
     var href = link.getAttribute("href");
     if (href === currentPath || (href === "/" && currentPath === "/")) {
       link.classList.add("active");
     } else if (href !== "/" && currentPath.startsWith(href)) {
+      link.classList.add("active");
+    }
+  });
+
+  // Nav dropdown toggle
+  document.querySelectorAll(".nav-dropdown-btn").forEach(function (btn) {
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var menu = btn.nextElementSibling;
+      var wasOpen = menu.classList.contains("open");
+      // Close all dropdowns
+      document.querySelectorAll(".nav-dropdown-menu").forEach(function (m) {
+        m.classList.remove("open");
+      });
+      if (!wasOpen) {
+        menu.classList.add("open");
+      }
+    });
+  });
+
+  // Close nav dropdowns on outside click
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest(".nav-dropdown")) {
+      document.querySelectorAll(".nav-dropdown-menu").forEach(function (m) {
+        m.classList.remove("open");
+      });
+    }
+  });
+
+  // Highlight active dropdown menu items
+  document.querySelectorAll(".nav-dropdown-menu a").forEach(function (link) {
+    if (link.getAttribute("href") === currentPath) {
       link.classList.add("active");
     }
   });

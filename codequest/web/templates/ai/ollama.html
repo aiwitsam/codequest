@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Ollama Hub - CodeQuest{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Ollama Hub</h1>
+  <span class="text-grey">{{ models|length }} models installed</span>
+</div>
+
+<!-- GPU Status -->
+<div class="gpu-header" id="gpu-header">
+  {% if gpu.available %}
+  <div class="gpu-stat">
+    <span class="gpu-stat-label">GPU</span>
+    {{ gpu.name }}
+  </div>
+  <div class="gpu-stat">
+    <span class="gpu-stat-label">VRAM Used</span>
+    {{ gpu.memory_used }} / {{ gpu.memory_total }}
+  </div>
+  <div class="gpu-stat">
+    <span class="gpu-stat-label">Free</span>
+    {{ gpu.memory_free }}
+  </div>
+  <div class="gpu-stat">
+    <span class="gpu-stat-label">Utilization</span>
+    {{ gpu.gpu_utilization }}
+  </div>
+  {% else %}
+  <div class="gpu-stat">
+    <span class="gpu-stat-label">GPU</span>
+    <span class="text-grey">{{ gpu.get('error', 'Not available') }}</span>
+  </div>
+  {% endif %}
+  <button class="btn btn-sm btn-cyan" onclick="refreshGpu()">Refresh</button>
+</div>
+
+<!-- Running Models -->
+{% if running %}
+<div class="panel">
+  <div class="panel-title">Running Models</div>
+  {% for m in running %}
+  <div class="service-card">
+    <div class="service-info">
+      <div class="service-name">
+        <span class="model-running-badge">LOADED</span>
+        {{ m.name }}
+      </div>
+      <div class="service-meta">
+        VRAM: {{ (m.size_vram / (1024**3))|round(1) }} GB
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Pull Model -->
+<div class="pull-form">
+  <input type="text" id="pull-model-name" class="form-input" placeholder="e.g. llama3:8b" style="flex:1">
+  <button class="btn btn-magenta" id="pull-btn" onclick="pullModel()">Pull Model</button>
+</div>
+<div class="pull-progress" id="pull-progress" style="display:none">
+  <div class="pull-progress-bar" id="pull-progress-bar" style="width:0%"></div>
+</div>
+<div id="pull-status" class="text-grey" style="font-family:var(--font-mono);font-size:0.7rem;margin-bottom:16px"></div>
+
+<!-- Installed Models -->
+<div class="model-card-grid">
+  {% for m in models %}
+  <div class="model-card">
+    <div class="model-card-name">{{ m.name }}</div>
+    <div class="model-card-meta">
+      <span>{{ m.size_gb }} GB</span>
+      {% if m.parameter_size %}<span>{{ m.parameter_size }}</span>{% endif %}
+      {% if m.family %}<span>{{ m.family }}</span>{% endif %}
+      {% if m.quantization %}<span>{{ m.quantization }}</span>{% endif %}
+    </div>
+    <div style="margin-top:8px">
+      <button class="btn btn-sm" onclick="deleteModel('{{ m.name }}')">Delete</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if not models %}
+<div class="empty-state">
+  <span class="empty-icon">LM</span>
+  <div class="empty-text">No models installed</div>
+  <div class="empty-hint">Ollama may not be running at {{ ollama_url }}</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/ollama.js') }}"></script>
+{% endblock %}
