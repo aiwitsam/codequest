@@ -31,7 +31,8 @@
        id="launch-card-{{ p.name }}"
        data-name="{{ p.name }}"
        data-port="{{ p.detected_port or '' }}"
-       data-url="{{ p.process.url if p.process and p.process.url else '' }}">
+       data-url="{{ p.process.url if p.process and p.process.url else '' }}"
+       data-web-url="{{ p.web_url or '' }}">
 
     <!-- Header -->
     <div class="launch-card-header">
@@ -64,27 +65,28 @@
               style="{{ '' if p.process and p.process.status in ('running', 'starting') else 'display:none' }}">
         Stop
       </button>
+      {% if p.web_url %}
+      <button class="webapp-btn"
+              onclick="openWebApp('{{ p.web_url }}', '{{ p.name }}')"
+              title="{{ p.web_url }}">
+        Web App
+      </button>
+      {% endif %}
       <button class="open-browser-btn"
-              onclick="openInBrowser('{{ p.process.url if p.process and p.process.url else '' }}')"
-              style="{{ '' if (p.process and p.process.url) or p.detected_port else 'display:none' }}">
+              onclick="openInBrowser('{{ p.process.url if p.process and p.process.url else p.web_url or '' }}')"
+              style="{{ '' if (p.process and p.process.url) or p.web_url else 'display:none' }}">
         Open
       </button>
     </div>
 
-    <!-- Port/URL bar -->
-    <div class="launch-url-bar {{ 'visible' if (p.process and p.process.url) else '' }}">
+    <!-- URL bar: visible when URL is known from config or process -->
+    <div class="launch-url-bar {{ 'visible' if p.web_url or (p.process and p.process.url) else '' }}">
       <a class="launch-url-link"
-         href="{{ p.process.url if p.process and p.process.url else '#' }}"
+         href="{{ p.process.url if p.process and p.process.url else p.web_url or '#' }}"
          target="_blank">
-        {{ p.process.url if p.process and p.process.url else '' }}
+        {{ p.process.url if p.process and p.process.url else p.web_url or '' }}
       </a>
     </div>
-
-    {% if p.detected_port and not (p.process and p.process.url) %}
-    <div class="launch-card-meta">
-      Expected port: {{ p.detected_port }}
-    </div>
-    {% endif %}
 
     <!-- Mini console -->
     <div class="launch-console {{ 'visible' if p.process and p.process.last_output else '' }}"
