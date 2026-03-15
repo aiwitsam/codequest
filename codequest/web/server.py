@@ -389,6 +389,32 @@ def create_app() -> Flask:
     # Process manager for Launchpad
     process_mgr = ProcessManager()
 
+    def _resolve_web_url(project_name: str, detected_port: int | None) -> str | None:
+        """Resolve web URL for a project from config, scanner, or running process."""
+        config = get_config()
+        service_ports = config.get("ops", {}).get("service_ports", {})
+        port_overrides = config.get("launch", {}).get("port_overrides", {})
+
+        # 1. Launch port_overrides (most specific)
+        if project_name in port_overrides:
+            return f"http://localhost:{port_overrides[project_name]}"
+
+        # 2. Ops service_ports (known services)
+        if project_name in service_ports:
+            return f"http://localhost:{service_ports[project_name]}"
+
+        # 3. Running launchpad process
+        procs = process_mgr.get_by_project(project_name)
+        for p in procs:
+            if p.status in ("starting", "running") and p.url:
+                return p.url
+
+        # 4. Scanner detected_port
+        if detected_port:
+            return f"http://localhost:{detected_port}"
+
+        return None
+
     # ------------------------------------------------------------------
     # Jinja helpers
     # ------------------------------------------------------------------
@@ -1264,6 +1290,7 @@ def create_app() -> Flask:
             procs = process_mgr.get_by_project(proj.name)
             active = [p for p in procs if p.status in ("starting", "running")]
             pd["process"] = active[0].to_dict() if active else None
+            pd["web_url"] = _resolve_web_url(proj.name, proj.detected_port)
             launchable.append(pd)
 
         running = sum(1 for p in process_mgr.list_all() if p.status in ("starting", "running"))
@@ -1590,6 +1617,34 @@ def create_app() -> Flask:
         return jsonify({
             "processes": [p.to_dict() for p in procs],
         })
+
+    @app.route("/api/web-urls")
+    def api_web_urls():
+        """All known project web URLs."""
+        projects = get_projects()
+        urls = {}
+        for proj in projects:
+            url = _resolve_web_url(proj.name, proj.detected_port)
+            if url:
+                urls[proj.name] = url
+        return jsonify({"urls": urls})
+
+    @app.route("/api/open-url", methods=["POST"])
+    def api_open_url():
+        """Open a URL in the system default browser."""
+        data = request.get_json(silent=True) or {}
+        url = data.get("url", "").strip()
+        if not url or not url.startswith("http"):
+            return jsonify({"error": "Invalid URL"}), 400
+        try:
+            subprocess.Popen(
+                ["xdg-open", url],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return jsonify({"success": True, "url": url})
+        except FileNotFoundError:
+            return jsonify({"error": "xdg-open not available"}), 500
 
     # ------------------------------------------------------------------
     # Ops API endpoints
