@@ -198,6 +198,21 @@ function openInBrowser(url) {
   if (url) window.open(url, "_blank");
 }
 
+// ── Open Web App (browser tab + server-side xdg-open) ───────────
+
+function openWebApp(url, name) {
+  if (!url) return;
+  window.open(url, "_blank");
+  fetch("/api/open-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url: url }),
+  }).catch(function() {
+    // Silent fail — browser tab already opened
+  });
+  showToast(name + " opened at " + url, "info");
+}
+
 // ── Toggle console expand ────────────────────────────────────────
 
 function toggleConsole(el) {
@@ -258,6 +273,19 @@ function pollLaunchStatus() {
         dot.className = "card-process-dot";
         if (proc) {
           dot.classList.add(proc.status);
+        }
+      });
+
+      // Ensure web URL buttons stay visible for cards with known URLs
+      document.querySelectorAll(".launch-card[data-web-url]").forEach(function(card) {
+        var webUrl = card.dataset.webUrl;
+        if (!webUrl) return;
+        var urlBar = card.querySelector(".launch-url-bar");
+        var urlLink = card.querySelector(".launch-url-link");
+        if (urlBar && urlLink && !urlBar.classList.contains("visible")) {
+          urlLink.textContent = webUrl;
+          urlLink.href = webUrl;
+          urlBar.classList.add("visible");
         }
       });
     })
