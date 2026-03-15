@@ -50,6 +50,7 @@ from codequest.intel import queue_utils
 from codequest.intel.reddit import RedditIntelWrapper
 from codequest.ops import services as ops_services
 from codequest.ops import security as ops_security
+from codequest.process_manager import ProcessManager
 
 
 # ---------------------------------------------------------------------------
@@ -385,6 +386,9 @@ def create_app() -> Flask:
     # Create model selector once at app level
     model_selector = ModelSelector()
 
+    # Process manager for Launchpad
+    process_mgr = ProcessManager()
+
     # ------------------------------------------------------------------
     # Jinja helpers
     # ------------------------------------------------------------------
@@ -419,10 +423,11 @@ def create_app() -> Flask:
         projects = get_projects()
         project_dicts = [_project_to_dict(p) for p in projects]
 
-        # Annotate with favorites and tags
+        # Annotate with favorites, tags, and run command availability
         for pd in project_dicts:
             pd["is_favorite"] = pd["name"] in favorites
             pd["tags"] = tags.get(pd["name"], [])
+            pd["has_run_commands"] = bool(pd.get("detected_run_commands"))
 
         # Sort favorites to top
         project_dicts.sort(key=lambda p: (not p["is_favorite"], p["name"].lower()))
@@ -1239,10 +1244,42 @@ def create_app() -> Flask:
     # Ops page routes
     # ------------------------------------------------------------------
 
+    @app.route("/launchpad")
+    def launchpad_page():
+        """Launchpad page — all launchable projects with status."""
+        projects = get_projects()
+        config = get_config()
+
+        launchable = []
+        for proj in projects:
+            pd = _project_to_dict(proj)
+            cmds = get_run_commands(proj.path)
+            if not cmds:
+                continue
+            pd["run_commands"] = [
+                {"label": c.label, "command": c.command, "source": c.source}
+                for c in cmds
+            ]
+            # Attach process status
+            procs = process_mgr.get_by_project(proj.name)
+            active = [p for p in procs if p.status in ("starting", "running")]
+            pd["process"] = active[0].to_dict() if active else None
+            launchable.append(pd)
+
+        running = sum(1 for p in process_mgr.list_all() if p.status in ("starting", "running"))
+        failed = sum(1 for p in process_mgr.list_all() if p.status == "failed")
+
+        return render_template(
+            "launchpad.html",
+            projects=launchable,
+            running_count=running,
+            failed_count=failed,
+        )
+
     @app.route("/ops/services")
     def ops_services_page():
         """Services & Mesh page."""
-        services = ops_services.get_services()
+        services = ops_services.get_unified_services(process_mgr)
         mesh = ops_services.get_mesh_status()
         return render_template("ops/services.html",
                                services=services, mesh=mesh)
@@ -1483,13 +1520,85 @@ def create_app() -> Flask:
         return jsonify({"cves": _reddit_wrapper.get_cves()})
 
     # ------------------------------------------------------------------
+    # Launchpad API endpoints
+    # ------------------------------------------------------------------
+
+    @app.route("/api/launch/<name>", methods=["POST"])
+    def api_launch(name):
+        """Start a project process and stream output via SSE."""
+        from flask import Response
+        import json as _json
+
+        projects = get_projects()
+        proj = _find_project(name, projects)
+        if not proj:
+            return jsonify({"error": "Project not found"}), 404
+
+        data = request.get_json(silent=True) or {}
+        command = data.get("command", "").strip()
+
+        if not command:
+            # Use default (first) run command
+            cmds = get_run_commands(proj.path)
+            if not cmds:
+                return jsonify({"error": "No run commands available"}), 400
+            command = cmds[0].command
+
+        try:
+            proc_id = process_mgr.start(name, command, str(proj.path))
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc)}), 429
+
+        def generate():
+            for event in process_mgr.stream_output(proc_id):
+                yield f"data: {_json.dumps(event)}\n\n"
+
+        return Response(generate(), mimetype="text/event-stream")
+
+    @app.route("/api/launch/<name>/stop", methods=["POST"])
+    def api_launch_stop(name):
+        """Stop a running process."""
+        data = request.get_json(silent=True) or {}
+        process_id = data.get("process_id", "").strip()
+
+        if process_id:
+            success = process_mgr.stop(process_id)
+        else:
+            # Stop the first active process for this project
+            procs = process_mgr.get_by_project(name)
+            active = [p for p in procs if p.status in ("starting", "running")]
+            if not active:
+                return jsonify({"error": "No running process found"}), 404
+            success = process_mgr.stop(active[0].id)
+
+        return jsonify({"success": success})
+
+    @app.route("/api/launch/status")
+    def api_launch_status():
+        """All managed processes."""
+        process_mgr.cleanup()
+        procs = process_mgr.list_all()
+        return jsonify({
+            "processes": [p.to_dict() for p in procs],
+            "running": sum(1 for p in procs if p.status in ("starting", "running")),
+        })
+
+    @app.route("/api/launch/<name>/status")
+    def api_launch_project_status(name):
+        """Processes for one project."""
+        procs = process_mgr.get_by_project(name)
+        return jsonify({
+            "processes": [p.to_dict() for p in procs],
+        })
+
+    # ------------------------------------------------------------------
     # Ops API endpoints
     # ------------------------------------------------------------------
 
     @app.route("/api/ops/services")
     def api_ops_services():
         """Service status JSON."""
-        return jsonify({"services": ops_services.get_services()})
+        return jsonify({"services": ops_services.get_unified_services(process_mgr)})
 
     @app.route("/api/ops/services/<name>/restart", methods=["POST"])
     def api_ops_restart(name):

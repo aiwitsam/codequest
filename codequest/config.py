@@ -64,6 +64,12 @@ DEFAULT_CONFIG = {
         "service_ports": {},
         "mesh_host": "",
     },
+    "launch": {
+        "max_output_lines": 1000,
+        "max_processes": 10,
+        "auto_health_check": True,
+        "port_overrides": {},
+    },
     "favorites": [],
     "tags": {},
     "first_run_complete": False,

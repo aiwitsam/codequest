@@ -157,6 +157,7 @@
           data-project="{{ project.name }}"
           data-command="{{ cmd.command }}"
         >
+          <span class="status-dot unknown"></span>
           <span class="cmd-play">&#9654;</span>
           {{ cmd.label }}
           {% if cmd.source %}
@@ -170,6 +171,25 @@
         No run commands detected for this project.
       </div>
       {% endif %}
+
+      {% if project.detected_port %}
+      <div class="launch-card-meta mt-1">
+        Expected port: {{ project.detected_port }}
+      </div>
+      {% endif %}
+
+      <!-- Stop bar (hidden by default) -->
+      <div id="launch-stop-bar" class="launch-card-actions mt-1" style="display: none;">
+        <button class="stop-cmd-btn" onclick="stopFromProject('{{ project.name }}')">
+          Stop Process
+        </button>
+      </div>
+
+      <!-- URL bar (shown when port detected) -->
+      <div class="launch-url-bar mt-1" id="launch-url-bar">
+        <a href="#" target="_blank">—</a>
+        <button class="open-browser-btn" onclick="openInBrowser(this.previousElementSibling.href)">Open</button>
+      </div>
 
       <!-- Console Output -->
       <div class="console-header mt-1" style="display: none;" id="console-header">

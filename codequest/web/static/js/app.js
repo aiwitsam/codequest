@@ -158,6 +158,211 @@ function runCommand(projectName, command) {
     });
 }
 
+// ── Launch from Project Page (SSE streaming) ────────────────────
+
+function launchFromProject(projectName, command) {
+  var consoleEl = document.getElementById("console-output");
+  var consoleHeader = document.getElementById("console-header-text");
+  var headerEl = document.getElementById("console-header");
+
+  if (!consoleEl) return;
+
+  consoleEl.classList.add("visible");
+  if (headerEl) headerEl.style.display = "";
+  clearElement(consoleEl);
+  consoleEl.appendChild(createTextSpan("Launching...", "console-loading"));
+
+  if (consoleHeader) {
+    consoleHeader.textContent = "> " + command;
+  }
+
+  // Disable launch button, show stop
+  var activeBtn = document.querySelector('.run-cmd-btn[data-command="' + command + '"]');
+  if (activeBtn) activeBtn.disabled = true;
+
+  var stopBar = document.getElementById("launch-stop-bar");
+  if (stopBar) stopBar.style.display = "";
+
+  var body = { command: command };
+
+  fetch("/api/launch/" + encodeURIComponent(projectName), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(function (resp) {
+    if (!resp.ok) {
+      return resp.json().then(function (data) {
+        clearElement(consoleEl);
+        consoleEl.appendChild(
+          createTextSpan("Error: " + (data.error || "Launch failed"), "error")
+        );
+        if (activeBtn) activeBtn.disabled = false;
+        showToast("Launch failed", "error");
+      });
+    }
+
+    clearElement(consoleEl);
+    var reader = resp.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = "";
+
+    function read() {
+      reader.read().then(function (result) {
+        if (result.done) {
+          if (activeBtn) activeBtn.disabled = false;
+          if (stopBar) stopBar.style.display = "none";
+          return;
+        }
+
+        buffer += decoder.decode(result.value, { stream: true });
+        var lines = buffer.split("\n");
+        buffer = lines.pop();
+
+        lines.forEach(function (line) {
+          if (line.startsWith("data: ")) {
+            try {
+              var event = JSON.parse(line.substring(6));
+              _handleProjectLaunchEvent(event, consoleEl, activeBtn, stopBar, projectName);
+            } catch (e) {}
+          }
+        });
+
+        read();
+      }).catch(function () {
+        if (activeBtn) activeBtn.disabled = false;
+        if (stopBar) stopBar.style.display = "none";
+      });
+    }
+
+    read();
+  }).catch(function (err) {
+    clearElement(consoleEl);
+    consoleEl.appendChild(
+      createTextSpan("Network error: " + err.message, "error")
+    );
+    if (activeBtn) activeBtn.disabled = false;
+    showToast("Network error", "error");
+  });
+}
+
+function _handleProjectLaunchEvent(event, consoleEl, activeBtn, stopBar, projectName) {
+  var urlBar = document.getElementById("launch-url-bar");
+
+  switch (event.type) {
+    case "status":
+      // Update status dots on run command buttons
+      document.querySelectorAll('.run-cmd-btn[data-project="' + projectName + '"]').forEach(function (btn) {
+        var dot = btn.querySelector(".status-dot");
+        if (dot) {
+          dot.className = "status-dot";
+          if (event.status === "running") dot.classList.add("up");
+          else if (event.status === "starting") dot.classList.add("timeout");
+        }
+      });
+      break;
+
+    case "output":
+      var lineEl = document.createElement("div");
+      lineEl.textContent = event.line;
+      consoleEl.appendChild(lineEl);
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+      break;
+
+    case "port":
+      if (urlBar) {
+        var link = urlBar.querySelector("a");
+        if (link) {
+          link.textContent = event.url;
+          link.href = event.url;
+        }
+        urlBar.classList.add("visible");
+      }
+      showToast("Available at " + event.url, "success");
+      break;
+
+    case "exit":
+      if (activeBtn) activeBtn.disabled = false;
+      if (stopBar) stopBar.style.display = "none";
+      // Reset status dots
+      document.querySelectorAll('.run-cmd-btn[data-project="' + projectName + '"]').forEach(function (btn) {
+        var dot = btn.querySelector(".status-dot");
+        if (dot) dot.className = "status-dot unknown";
+      });
+      if (event.exit_code !== 0 && event.exit_code !== null) {
+        showToast("Process exited with code " + event.exit_code, "error");
+      }
+      break;
+  }
+}
+
+function stopFromProject(projectName) {
+  fetch("/api/launch/" + encodeURIComponent(projectName) + "/stop", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  })
+    .then(function (resp) { return resp.json(); })
+    .then(function (data) {
+      if (data.success) {
+        showToast("Process stopped", "info");
+      } else {
+        showToast("No running process to stop", "error");
+      }
+    })
+    .catch(function (err) {
+      showToast("Error: " + err.message, "error");
+    });
+}
+
+// ── Footer Process Count (global) ────────────────────────────────
+
+function updateFooterProcessCount(count) {
+  var countEl = document.getElementById("footer-proc-count");
+  var dotEl = document.getElementById("footer-proc-dot");
+  if (countEl) countEl.textContent = count;
+  if (dotEl) {
+    if (count > 0) {
+      dotEl.classList.add("active");
+    } else {
+      dotEl.classList.remove("active");
+    }
+  }
+}
+
+// ── Dashboard Quick Actions ──────────────────────────────────────
+
+function dashboardLaunch(name, event) {
+  if (event) event.stopPropagation();
+  fetch("/api/launch/" + encodeURIComponent(name), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  }).then(function (resp) {
+    if (resp.ok) {
+      showToast(name + " launched", "success");
+      // Consume the SSE stream silently
+      var reader = resp.body.getReader();
+      function drain() {
+        reader.read().then(function (result) {
+          if (!result.done) drain();
+        });
+      }
+      drain();
+    } else {
+      resp.json().then(function (data) {
+        showToast("Failed: " + (data.error || "Unknown"), "error");
+      });
+    }
+  }).catch(function (err) {
+    showToast("Error: " + err.message, "error");
+  });
+}
+
+function dashboardOpenBrowser(url, event) {
+  if (event) event.stopPropagation();
+  if (url) window.open(url, "_blank");
+}
+
 // ── Ask AI (Project Page) ────────────────────────────────────────
 
 function askAI(question, projectName) {
@@ -1145,13 +1350,13 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // Run command buttons (project detail page)
+  // Run command buttons (project detail page) — use streaming launch
   document.querySelectorAll(".run-cmd-btn").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var project = btn.dataset.project;
       var command = btn.dataset.command;
       if (project && command) {
-        runCommand(project, command);
+        launchFromProject(project, command);
       }
     });
   });

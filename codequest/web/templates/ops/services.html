@@ -34,17 +34,44 @@
         <div class="service-name">
           <span class="status-dot {{ svc.health.status }}"></span>
           {{ svc.name }}
+          {% if svc.source == 'systemd' %}
+          <span class="source-badge systemd">SYSTEMD</span>
+          {% elif svc.source == 'launchpad' %}
+          <span class="source-badge launchpad">LAUNCHPAD</span>
+          {% elif svc.source == 'linked' %}
+          <span class="source-badge linked">LINKED</span>
+          {% endif %}
         </div>
         <div class="service-meta">
           {% if svc.port %}Port {{ svc.port }}{% endif %}
           {% if svc.description %} | {{ svc.description }}{% endif %}
           <br>
+          {% if svc.source != 'launchpad' %}
           systemctl: {{ svc.systemctl_status }}
+          {% endif %}
           {% if svc.health.response_time_ms %} | {{ svc.health.response_time_ms }}ms{% endif %}
+          {% if svc.launchpad_process is defined and svc.launchpad_process %}
+          <br>PID: {{ svc.launchpad_process.pid }} | {{ svc.launchpad_process.status }}
+          {% endif %}
         </div>
+        {% if svc.launchpad_process is defined and svc.launchpad_process and svc.launchpad_process.last_output %}
+        <div class="launch-console visible" style="max-height:60px;margin-top:6px;">
+          {% for line in svc.launchpad_process.last_output[-3:] %}
+          <div>{{ line }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
-      <div>
+      <div style="display:flex;gap:6px;flex-direction:column;">
+        {% if svc.source == 'systemd' or svc.source == 'linked' %}
         <button class="btn btn-sm" onclick="restartService('{{ svc.name }}')">Restart</button>
+        {% endif %}
+        {% if svc.source in ('launchpad', 'linked') and svc.launchpad_process is defined and svc.launchpad_process and svc.launchpad_process.status in ('running', 'starting') %}
+        <button class="btn btn-sm" style="border-color:var(--red);color:var(--red);" onclick="stopLaunchpadService('{{ svc.name }}')">Stop</button>
+        {% endif %}
+        {% if svc.source in ('launchpad', 'linked') %}
+        <a href="/project/{{ svc.name }}" class="btn btn-sm btn-cyan" style="text-decoration:none;text-align:center;">View</a>
+        {% endif %}
       </div>
     </div>
     {% endfor %}

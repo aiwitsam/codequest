@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -46,6 +47,7 @@ class ProjectInfo:
     is_claude_made: bool = False
     has_github: bool = False
     detected_run_commands: list[dict] = field(default_factory=list)
+    detected_port: int | None = None
 
 
 def detect_project_type(path: Path) -> str:
@@ -136,6 +138,64 @@ def _detect_run_commands(path: Path, project_type: str) -> list[dict]:
     return commands
 
 
+def _detect_port(path: Path, project_type: str) -> int | None:
+    """Detect a statically declared port from project files."""
+    str_path = str(path)
+
+    # package.json: scripts containing --port NNNN or -p NNNN
+    if project_type == "Node":
+        pkg_json = path / "package.json"
+        if pkg_json.exists():
+            try:
+                with open(pkg_json, "r") as f:
+                    pkg = json.load(f)
+                scripts = pkg.get("scripts", {})
+                for val in scripts.values():
+                    m = re.search(r"(?:--port|-p)\s+(\d{4,5})", val)
+                    if m:
+                        return int(m.group(1))
+            except (json.JSONDecodeError, OSError):
+                pass
+
+    # Python entry points: port=NNNN patterns
+    if project_type == "Python":
+        for candidate in ("app.py", "main.py", "server.py"):
+            fpath = path / candidate
+            if fpath.is_file():
+                try:
+                    content = fpath.read_text(encoding="utf-8", errors="replace")[:8192]
+                    m = re.search(r"port\s*=\s*(\d{4,5})", content)
+                    if m:
+                        return int(m.group(1))
+                except OSError:
+                    pass
+
+    # Dockerfile: EXPOSE NNNN
+    dockerfile = path / "Dockerfile"
+    if dockerfile.is_file():
+        try:
+            content = dockerfile.read_text(encoding="utf-8", errors="replace")
+            m = re.search(r"^EXPOSE\s+(\d{4,5})", content, re.MULTILINE)
+            if m:
+                return int(m.group(1))
+        except OSError:
+            pass
+
+    # .env / .env.local: PORT=NNNN
+    for env_file in (".env", ".env.local"):
+        env_path = path / env_file
+        if env_path.is_file():
+            try:
+                content = env_path.read_text(encoding="utf-8", errors="replace")
+                m = re.search(r"^PORT\s*=\s*(\d{4,5})", content, re.MULTILINE)
+                if m:
+                    return int(m.group(1))
+            except OSError:
+                pass
+
+    return None
+
+
 def _read_readme(path: Path) -> tuple[Optional[Path], str]:
     """Find and read the first README file in *path*."""
     for name in ("README.md", "README.rst", "README.txt", "README"):
@@ -222,6 +282,7 @@ def scan_project(path: Path) -> ProjectInfo:
     readme_path, readme_content = _read_readme(path)
     git = _git_info(path)
     run_commands = _detect_run_commands(path, project_type)
+    detected_port = _detect_port(path, project_type)
 
     # Use the project root directory mtime (fast, no deep recursion)
     try:
@@ -247,6 +308,7 @@ def scan_project(path: Path) -> ProjectInfo:
         is_claude_made=git["is_claude_made"],
         has_github=git["has_github"],
         detected_run_commands=run_commands,
+        detected_port=detected_port,
     )
 
 
@@ -369,6 +431,7 @@ def _project_to_dict(proj: ProjectInfo) -> dict:
         "is_claude_made": proj.is_claude_made,
         "has_github": proj.has_github,
         "detected_run_commands": proj.detected_run_commands,
+        "detected_port": proj.detected_port,
     }
 
 
@@ -387,6 +450,7 @@ def _dict_to_project(d: dict) -> ProjectInfo:
         is_claude_made=d.get("is_claude_made", False),
         has_github=d.get("has_github", False),
         detected_run_commands=d.get("detected_run_commands", []),
+        detected_port=d.get("detected_port"),
     )
 
 

@@ -24,6 +24,26 @@ function restartService(name) {
     .catch(function (err) { showToast("Error: " + err.message, "error"); });
 }
 
+function stopLaunchpadService(name) {
+  if (!confirm('Stop launchpad process "' + name + '"?')) return;
+
+  fetch("/api/launch/" + encodeURIComponent(name) + "/stop", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  })
+    .then(function (resp) { return resp.json(); })
+    .then(function (data) {
+      if (data.success) {
+        showToast(name + " stopped", "success");
+        setTimeout(function () { location.reload(); }, 1500);
+      } else {
+        showToast("Failed to stop " + name, "error");
+      }
+    })
+    .catch(function (err) { showToast("Error: " + err.message, "error"); });
+}
+
 // Auto-refresh every 30s
 var _serviceInterval = null;
 

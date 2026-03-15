@@ -134,6 +134,17 @@
         </div>
       </div>
     </a>
+    {% if p.has_run_commands %}
+    <div class="card-actions" onclick="event.stopPropagation();">
+      <button class="card-action-btn launch-quick" title="Launch default command"
+              onclick="dashboardLaunch('{{ p.name }}', event)">&#9654;</button>
+      {% if p.detected_port %}
+      <button class="card-action-btn open-browser-quick" title="Open in browser"
+              onclick="dashboardOpenBrowser('http://localhost:{{ p.detected_port }}', event)">&#x1F310;</button>
+      {% endif %}
+      <span class="card-process-dot" data-project="{{ p.name }}"></span>
+    </div>
+    {% endif %}
   </div>
   {% endfor %}
 </div>

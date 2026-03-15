@@ -111,6 +111,82 @@ def get_services():
     return results
 
 
+def get_unified_services(process_mgr=None):
+    """Merge systemd services with Launchpad-managed processes.
+
+    Returns a combined list where each entry has a 'source' field:
+    'systemd', 'launchpad', or 'linked' (when both match).
+    """
+    base_services = get_services()
+
+    if process_mgr is None:
+        return base_services
+
+    managed = process_mgr.list_all()
+    if not managed:
+        for svc in base_services:
+            svc["source"] = "systemd"
+        return base_services
+
+    # Build lookup by name and working_dir for matching
+    svc_by_name = {s["name"]: s for s in base_services}
+    svc_by_dir = {}
+    for s in base_services:
+        wd = s.get("working_dir", "").rstrip("/")
+        if wd:
+            svc_by_dir[wd] = s
+
+    matched_svc_names = set()
+    results = []
+
+    for proc in managed:
+        if proc.status in ("stopped", "killed") and proc.stopped_at > 0:
+            import time
+            if time.time() - proc.stopped_at > 300:
+                continue
+
+        cwd = proc.cwd.rstrip("/")
+        matched = svc_by_name.get(proc.project_name) or svc_by_dir.get(cwd)
+
+        if matched:
+            matched_svc_names.add(matched["name"])
+            entry = dict(matched)
+            entry["source"] = "linked"
+            entry["launchpad_process"] = proc.to_dict()
+            if proc.port:
+                entry["port"] = proc.port
+            if proc.status in ("starting", "running"):
+                entry["health"] = {"status": "up", "code": None, "response_time_ms": None}
+            results.append(entry)
+        else:
+            entry = {
+                "name": proc.project_name,
+                "description": proc.command,
+                "exec_start": proc.command,
+                "working_dir": proc.cwd,
+                "source": "launchpad",
+                "port": proc.port,
+                "systemctl_status": "n/a",
+                "health": {
+                    "status": "up" if proc.status == "running" else (
+                        "down" if proc.status in ("failed", "killed") else "unknown"
+                    ),
+                    "code": None,
+                    "response_time_ms": None,
+                },
+                "launchpad_process": proc.to_dict(),
+            }
+            results.append(entry)
+
+    # Add unmatched systemd services
+    for svc in base_services:
+        if svc["name"] not in matched_svc_names:
+            svc["source"] = "systemd"
+            results.append(svc)
+
+    return results
+
+
 def get_mesh_status():
     """Get mesh sync status."""
     config = get_config()

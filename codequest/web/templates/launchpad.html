@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Launchpad - CodeQuest{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Launchpad</h1>
+</div>
+
+<!-- Summary Bar -->
+<div class="launchpad-summary">
+  <div class="summary-stat">
+    <span class="status-dot up"></span>
+    <span class="hl" id="lp-running">{{ running_count }}</span> running
+  </div>
+  <div class="summary-stat">
+    <span class="hl">{{ projects|length }}</span> available
+  </div>
+  {% if failed_count > 0 %}
+  <div class="summary-stat">
+    <span class="status-dot down"></span>
+    <span class="hl">{{ failed_count }}</span> failed
+  </div>
+  {% endif %}
+</div>
+
+<!-- Project Cards Grid -->
+{% if projects %}
+<div class="launchpad-grid">
+  {% for p in projects %}
+  <div class="launch-card {{ 'running' if p.process and p.process.status == 'running' else ('failed' if p.process and p.process.status == 'failed' else ('starting' if p.process and p.process.status == 'starting' else '')) }}"
+       id="launch-card-{{ p.name }}"
+       data-name="{{ p.name }}"
+       data-port="{{ p.detected_port or '' }}"
+       data-url="{{ p.process.url if p.process and p.process.url else '' }}">
+
+    <!-- Header -->
+    <div class="launch-card-header">
+      <span class="status-dot {{ 'up' if p.process and p.process.status == 'running' else ('down' if p.process and p.process.status == 'failed' else ('timeout' if p.process and p.process.status == 'starting' else 'unknown')) }}"></span>
+      <span class="launch-card-name">{{ p.name }}</span>
+      <span class="card-type {{ p.project_type|lower }}">{{ p.project_type }}</span>
+    </div>
+
+    <!-- Command selector + actions -->
+    <div class="launch-card-actions">
+      {% if p.run_commands|length > 1 %}
+      <select class="launch-cmd-select" id="cmd-select-{{ p.name }}">
+        {% for cmd in p.run_commands %}
+        <option value="{{ cmd.command }}">{{ cmd.label }}{% if cmd.source %} ({{ cmd.source }}){% endif %}</option>
+        {% endfor %}
+      </select>
+      {% else %}
+      <span class="launch-card-meta">{{ p.run_commands[0].label }}{% if p.run_commands[0].source %} ({{ p.run_commands[0].source }}){% endif %}</span>
+      {% endif %}
+    </div>
+
+    <div class="launch-card-actions">
+      <button class="launch-btn"
+              onclick="launchProject('{{ p.name }}', document.getElementById('cmd-select-{{ p.name }}'))"
+              {% if p.process and p.process.status in ('running', 'starting') %}disabled{% endif %}>
+        Launch
+      </button>
+      <button class="stop-cmd-btn"
+              onclick="stopProject('{{ p.name }}')"
+              style="{{ '' if p.process and p.process.status in ('running', 'starting') else 'display:none' }}">
+        Stop
+      </button>
+      <button class="open-browser-btn"
+              onclick="openInBrowser('{{ p.process.url if p.process and p.process.url else '' }}')"
+              style="{{ '' if (p.process and p.process.url) or p.detected_port else 'display:none' }}">
+        Open
+      </button>
+    </div>
+
+    <!-- Port/URL bar -->
+    <div class="launch-url-bar {{ 'visible' if (p.process and p.process.url) else '' }}">
+      <a class="launch-url-link"
+         href="{{ p.process.url if p.process and p.process.url else '#' }}"
+         target="_blank">
+        {{ p.process.url if p.process and p.process.url else '' }}
+      </a>
+    </div>
+
+    {% if p.detected_port and not (p.process and p.process.url) %}
+    <div class="launch-card-meta">
+      Expected port: {{ p.detected_port }}
+    </div>
+    {% endif %}
+
+    <!-- Mini console -->
+    <div class="launch-console {{ 'visible' if p.process and p.process.last_output else '' }}"
+         onclick="toggleConsole(this)">
+      {%- if p.process and p.process.last_output -%}
+        {%- for line in p.process.last_output -%}
+          <div>{{ line }}</div>
+        {%- endfor -%}
+      {%- endif -%}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <span class="empty-icon">&#x1F680;</span>
+  <div class="empty-text">No launchable projects found</div>
+  <div class="empty-hint">Projects need run commands (package.json scripts, Python entry points, Makefiles, etc.) to appear here.</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/launchpad.js') }}"></script>
+{% endblock %}

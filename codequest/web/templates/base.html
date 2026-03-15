@@ -46,6 +46,7 @@
 
     <div class="nav-links">
       <a href="/" {% if request.path == '/' %}class="active"{% endif %}>Dashboard</a>
+      <a href="/launchpad" {% if request.path == '/launchpad' %}class="active"{% endif %}>Launchpad</a>
       <a href="/dependencies" {% if request.path == '/dependencies' %}class="active"{% endif %}>Dependencies</a>
       <a href="/connections" {% if request.path == '/connections' %}class="active"{% endif %}>Connections</a>
 
@@ -115,6 +116,10 @@
     <span class="footer-text">
       <span class="hl">{{ project_count }}</span> projects indexed
     </span>
+    <span class="footer-text footer-processes" id="footer-processes" onclick="window.location.href='/launchpad'">
+      <span class="footer-proc-dot" id="footer-proc-dot"></span>
+      <span class="hl" id="footer-proc-count">0</span> running
+    </span>
     <span class="footer-text">
       Model: <span class="hl">{{ active_model }}</span>
     </span>
@@ -124,6 +129,7 @@
   <div class="toast-container"></div>
 
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/launchpad.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
