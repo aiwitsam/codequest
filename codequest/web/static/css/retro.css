@@ -3458,6 +3458,23 @@ a.clickable-card-link:hover .pulse-card-name {
   background: rgba(0, 255, 255, 0.15);
 }
 
+.webapp-btn {
+  font-family: var(--font-pixel);
+  font-size: calc(0.5rem * var(--text-scale));
+  padding: 6px 14px;
+  border: 2px solid var(--magenta);
+  background: transparent;
+  color: var(--magenta);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.webapp-btn:hover {
+  background: rgba(255, 0, 255, 0.15);
+  border-color: var(--magenta);
+  box-shadow: 0 0 8px var(--magenta);
+}
+
 .launch-console {
   background: var(--bg-dark);
   border: 1px solid var(--green-dim);
