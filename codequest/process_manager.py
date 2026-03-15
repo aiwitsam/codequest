@@ -6,6 +6,7 @@ monitoring, and stopping project processes with port detection.
 
 from __future__ import annotations
 
+import os
 import re
 import signal
 import subprocess
@@ -14,6 +15,7 @@ import time
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Generator, Optional
 
 from codequest.config import get_config
@@ -81,6 +83,29 @@ class ProcessManager:
         self._processes: dict[str, ManagedProcess] = {}
         self._lock = threading.Lock()
 
+    @staticmethod
+    def _build_env(cwd: str) -> dict[str, str]:
+        """Build environment for subprocess with full user PATH and venv."""
+        env = os.environ.copy()
+
+        extra_paths = []
+
+        # Check for project venv
+        cwd_path = Path(cwd)
+        for venv_dir in (".venv", "venv"):
+            venv_bin = cwd_path / venv_dir / "bin"
+            if venv_bin.is_dir():
+                extra_paths.append(str(venv_bin))
+                env["VIRTUAL_ENV"] = str(cwd_path / venv_dir)
+                break
+
+        # Prepend extra paths to existing PATH
+        if extra_paths:
+            existing = env.get("PATH", "")
+            env["PATH"] = os.pathsep.join(extra_paths) + os.pathsep + existing
+
+        return env
+
     def start(self, project_name: str, command: str, cwd: str) -> str:
         """Spawn a process and return its ID.
 
@@ -126,6 +151,7 @@ class ProcessManager:
 
         # Spawn outside the lock
         try:
+            env = self._build_env(cwd)
             popen = subprocess.Popen(
                 command,
                 cwd=cwd,
@@ -133,6 +159,7 @@ class ProcessManager:
                 stderr=subprocess.STDOUT,
                 text=True,
                 shell=True,
+                env=env,
             )
             managed._process = popen
             managed.pid = popen.pid
