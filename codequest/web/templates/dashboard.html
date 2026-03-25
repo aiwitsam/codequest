@@ -134,13 +134,24 @@
         </div>
       </div>
     </a>
-    {% if p.has_run_commands %}
+    {% if p.has_run_commands or p.systemd_service %}
     <div class="card-actions" onclick="event.stopPropagation();">
+      {% if p.systemd_service %}
+        {% if p.systemd_status == 'active' %}
+      <button class="card-action-btn service-stop" title="Stop service"
+              onclick="dashboardStopService('{{ p.name }}', event)">&#x23FB;</button>
+        {% else %}
+      <button class="card-action-btn service-start" title="Start service"
+              onclick="dashboardStartService('{{ p.name }}', event)">&#x23FB;</button>
+        {% endif %}
+      {% elif p.has_run_commands %}
       <button class="card-action-btn launch-quick" title="Launch default command"
               onclick="dashboardLaunch('{{ p.name }}', event)">&#9654;</button>
-      {% if p.detected_port %}
+      {% endif %}
+      {% if p.web_url %}
       <button class="card-action-btn open-browser-quick" title="Open in browser"
-              onclick="dashboardOpenBrowser('http://localhost:{{ p.detected_port }}', event)">&#x1F310;</button>
+              onclick="dashboardOpenBrowser('{{ p.web_url }}', event)">&#x1F310;</button>
+      <span class="card-port-label">:{{ p.web_url.split(':')[-1] }}</span>
       {% endif %}
       <span class="card-process-dot" data-project="{{ p.name }}"></span>
     </div>

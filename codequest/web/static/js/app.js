@@ -363,6 +363,59 @@ function dashboardOpenBrowser(url, event) {
   if (url) window.open(url, "_blank");
 }
 
+// ── Dashboard Service Controls ───────────────────────────────────
+
+function dashboardStartService(name, event) {
+  if (event) event.stopPropagation();
+  var btn = event && event.currentTarget;
+  if (btn) btn.disabled = true;
+  showToast("Starting " + name + "...", "info");
+
+  fetch("/api/ops/services/" + encodeURIComponent(name) + "/start", {
+    method: "POST",
+  })
+    .then(function (resp) { return resp.json(); })
+    .then(function (data) {
+      if (data.success) {
+        showToast(name + " started", "success");
+        setTimeout(function () { location.reload(); }, 1500);
+      } else {
+        showToast(data.error || "Start failed", "error");
+        if (btn) btn.disabled = false;
+      }
+    })
+    .catch(function (err) {
+      showToast("Error: " + err.message, "error");
+      if (btn) btn.disabled = false;
+    });
+}
+
+function dashboardStopService(name, event) {
+  if (event) event.stopPropagation();
+  if (!confirm('Stop service "' + name + '"?\n\nThis will shut down the running service.')) return;
+  var btn = event && event.currentTarget;
+  if (btn) btn.disabled = true;
+  showToast("Stopping " + name + "...", "info");
+
+  fetch("/api/ops/services/" + encodeURIComponent(name) + "/stop", {
+    method: "POST",
+  })
+    .then(function (resp) { return resp.json(); })
+    .then(function (data) {
+      if (data.success) {
+        showToast(name + " stopped", "success");
+        setTimeout(function () { location.reload(); }, 1500);
+      } else {
+        showToast(data.error || "Stop failed", "error");
+        if (btn) btn.disabled = false;
+      }
+    })
+    .catch(function (err) {
+      showToast("Error: " + err.message, "error");
+      if (btn) btn.disabled = false;
+    });
+}
+
 // ── Ask AI (Project Page) ────────────────────────────────────────
 
 function askAI(question, projectName) {

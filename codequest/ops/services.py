@@ -238,8 +238,8 @@ def get_mesh_status():
     return {"output": "Mesh status unavailable", "connected": False, "mesh_host": mesh_host}
 
 
-def restart_service(name):
-    """Restart a systemd user service (only if in config whitelist)."""
+def _systemctl_action(name, action):
+    """Run a systemctl --user action on a whitelisted service."""
     config = get_config()
     service_ports = config.get("ops", {}).get("service_ports", {})
     if name not in service_ports:
@@ -247,13 +247,28 @@ def restart_service(name):
 
     try:
         result = subprocess.run(
-            ["systemctl", "--user", "restart", name],
+            ["systemctl", "--user", action, name],
             capture_output=True,
             text=True,
             timeout=15,
         )
         if result.returncode == 0:
-            return True, "Restarted"
-        return False, result.stderr.strip() or "Restart failed"
+            return True, action.capitalize() + "ed" if action != "stop" else "Stopped"
+        return False, result.stderr.strip() or f"{action.capitalize()} failed"
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         return False, str(e)
+
+
+def start_service(name):
+    """Start a systemd user service (only if in config whitelist)."""
+    return _systemctl_action(name, "start")
+
+
+def stop_service(name):
+    """Stop a systemd user service (only if in config whitelist)."""
+    return _systemctl_action(name, "stop")
+
+
+def restart_service(name):
+    """Restart a systemd user service (only if in config whitelist)."""
+    return _systemctl_action(name, "restart")

@@ -2415,6 +2415,303 @@ textarea.settings-value {
 .severity-patch { color: var(--green); }
 .severity-unknown { color: var(--grey); }
 
+/* ── Dependency Engine (Health + Actions) ────────────────────────── */
+
+.dep-health-summary {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+  background: rgba(0, 255, 0, 0.05);
+  border: 1px solid var(--green-dim, #1a4a1a);
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.dep-health-avg {
+  color: var(--cyan);
+  font-family: 'PressStart2P', monospace;
+  font-size: 0.65rem;
+}
+
+.dep-health-badge {
+  display: inline-block;
+  width: 1.6em;
+  text-align: center;
+  font-family: 'PressStart2P', monospace;
+  font-size: 0.65rem;
+  border: 1px solid var(--grey);
+  border-radius: 3px;
+  padding: 0.15em 0.3em;
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+}
+
+.dep-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--grey-dark, #333);
+}
+
+.dep-actions .btn {
+  font-size: 0.6rem;
+  padding: 0.3em 0.6em;
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--cyan);
+  border: 1px solid var(--cyan-dim, #1a4a4a);
+  cursor: pointer;
+}
+.btn-outline:hover { background: rgba(0, 200, 200, 0.1); }
+
+.btn-green {
+  background: rgba(0, 200, 0, 0.15);
+  color: var(--green);
+  border: 1px solid var(--green-dim, #1a4a1a);
+  cursor: pointer;
+}
+.btn-green:hover { background: rgba(0, 200, 0, 0.25); }
+
+.btn-amber {
+  background: rgba(200, 160, 0, 0.15);
+  color: var(--amber);
+  border: 1px solid var(--amber-dim, #4a3a1a);
+  cursor: pointer;
+}
+.btn-amber:hover { background: rgba(200, 160, 0, 0.25); }
+
+.dep-results-panel {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--grey-dark, #333);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-family: monospace;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.dep-results-summary {
+  color: var(--cyan);
+  margin-bottom: 0.5rem;
+  font-family: 'PressStart2P', monospace;
+  font-size: 0.6rem;
+}
+
+.dep-result-line {
+  padding: 0.15rem 0;
+  color: var(--fg, #ccc);
+}
+
+.dep-result-success { color: var(--green); }
+.dep-result-failed { color: var(--red); }
+.dep-result-dry-run { color: var(--amber); }
+
+.dep-result-error {
+  color: var(--red);
+  opacity: 0.8;
+  font-size: 0.6rem;
+  padding-left: 1rem;
+}
+
+/* ── System Updates Dashboard ────────────────────────────────────── */
+
+.sys-info-bar {
+  display: flex;
+  gap: 2rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: rgba(0, 200, 200, 0.05);
+  border: 1px solid var(--cyan-dim, #1a4a4a);
+  border-radius: 4px;
+}
+
+.sys-info-item { display: flex; flex-direction: column; gap: 0.2rem; }
+.sys-label { font-size: 0.55rem; color: var(--cyan); font-family: 'PressStart2P', monospace; text-transform: uppercase; }
+.sys-value { font-size: 0.75rem; color: var(--fg, #ccc); }
+
+.sys-update-summary {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--grey-dark, #333);
+  border-radius: 4px;
+}
+
+.sys-stat { text-align: center; min-width: 80px; }
+.sys-stat-number { display: block; font-size: 1.5rem; font-family: 'PressStart2P', monospace; color: var(--green); }
+.sys-stat-label { display: block; font-size: 0.55rem; color: var(--grey-light, #999); margin-top: 0.3rem; }
+.sys-stat-security .sys-stat-number { color: var(--red); }
+.sys-stat-critical .sys-stat-number { color: var(--amber); }
+
+.sys-section { margin-bottom: 1.5rem; }
+.sys-section-title { font-size: 0.75rem; font-family: 'PressStart2P', monospace; color: var(--cyan); margin-bottom: 0.75rem; }
+
+.sys-filter-row { margin-bottom: 0.75rem; }
+
+.sys-disk-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+.sys-disk-label { min-width: 100px; font-size: 0.7rem; color: var(--fg); }
+.sys-disk-bar-outer { flex: 1; height: 16px; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--grey-dark, #333); border-radius: 2px; overflow: hidden; }
+.sys-disk-bar-fill { height: 100%; background: var(--green); transition: width 0.3s; }
+.sys-disk-bar-fill.disk-warn { background: var(--amber); }
+.sys-disk-bar-fill.disk-danger { background: var(--red); }
+.sys-disk-info { min-width: 160px; font-size: 0.65rem; color: var(--grey-light, #999); text-align: right; }
+
+.sys-imp-security { color: var(--red) !important; }
+.sys-imp-critical { color: var(--amber) !important; }
+.sys-imp-regular { color: var(--green) !important; }
+.sys-imp-library { color: var(--grey-light, #999) !important; }
+
+.sys-tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; }
+.sys-tool-card {
+  padding: 0.75rem;
+  background: rgba(0, 200, 0, 0.05);
+  border: 1px solid var(--green-dim, #1a4a1a);
+  border-radius: 4px;
+  text-align: center;
+}
+.sys-tool-card.sys-tool-missing { border-color: var(--red-dim, #4a1a1a); background: rgba(200, 0, 0, 0.05); }
+.sys-tool-name { font-size: 0.65rem; font-family: 'PressStart2P', monospace; color: var(--cyan); margin-bottom: 0.3rem; }
+.sys-tool-version { font-size: 0.7rem; color: var(--fg); }
+.sys-tool-missing .sys-tool-version { color: var(--red); }
+
+.sys-guide {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.sys-guide-content {
+  max-width: 600px;
+  padding: 2rem;
+  background: var(--bg, #0a0a0a);
+  border: 2px solid var(--cyan);
+  border-radius: 8px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.sys-guide-step {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--grey-dark, #333);
+}
+.sys-step-number {
+  min-width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'PressStart2P', monospace;
+  font-size: 0.8rem;
+  color: var(--cyan);
+  border: 1px solid var(--cyan);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.sys-step-body h3 { font-size: 0.7rem; font-family: 'PressStart2P', monospace; color: var(--green); margin-bottom: 0.5rem; }
+.sys-step-body p { font-size: 0.75rem; color: var(--fg); margin-bottom: 0.5rem; line-height: 1.5; }
+.sys-command {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  background: rgba(0, 200, 200, 0.1);
+  border: 1px solid var(--cyan-dim, #1a4a4a);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: var(--cyan);
+  margin: 0.5rem 0;
+  word-break: break-all;
+}
+.sys-step-hint { font-size: 0.65rem !important; color: var(--grey-light, #999) !important; font-style: italic; }
+
+.sys-loading { padding: 2rem; text-align: center; color: var(--grey-light, #999); font-size: 0.7rem; }
+
+/* ── GitHub Repos Dashboard ──────────────────────────────────────── */
+
+.gh-summary {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--grey-dark, #333);
+  border-radius: 4px;
+}
+.gh-stat { text-align: center; min-width: 70px; }
+.gh-stat-number { display: block; font-size: 1.3rem; font-family: 'PressStart2P', monospace; color: var(--fg); }
+.gh-stat-label { display: block; font-size: 0.5rem; color: var(--grey-light, #999); margin-top: 0.2rem; }
+.gh-stat-public .gh-stat-number { color: var(--green); }
+.gh-stat-private .gh-stat-number { color: var(--amber); }
+.gh-stat-cloned .gh-stat-number { color: var(--cyan); }
+.gh-stat-remote .gh-stat-number { color: var(--magenta); }
+
+.gh-repo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 0.75rem;
+}
+
+.gh-repo-card {
+  padding: 0.75rem 1rem;
+  background: rgba(0, 200, 200, 0.03);
+  border: 1px solid var(--grey-dark, #333);
+  border-radius: 4px;
+  transition: border-color 0.2s;
+}
+.gh-repo-card:hover { border-color: var(--cyan-dim, #1a4a4a); }
+.gh-repo-card.gh-archived { opacity: 0.5; }
+
+.gh-repo-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.4rem; }
+.gh-repo-name {
+  font-family: 'PressStart2P', monospace;
+  font-size: 0.6rem;
+  color: var(--cyan);
+  text-decoration: none;
+  word-break: break-word;
+}
+.gh-repo-name:hover { color: var(--green); text-decoration: underline; }
+
+.gh-badges { display: flex; gap: 0.3rem; flex-shrink: 0; flex-wrap: wrap; }
+.gh-badge {
+  font-size: 0.45rem;
+  font-family: 'PressStart2P', monospace;
+  padding: 0.15em 0.4em;
+  border: 1px solid;
+  border-radius: 2px;
+  text-transform: uppercase;
+}
+.gh-badge-public { color: var(--green); border-color: var(--green-dim, #1a4a1a); }
+.gh-badge-private { color: var(--amber); border-color: var(--amber-dim, #4a3a1a); }
+.gh-badge-local { color: var(--cyan); border-color: var(--cyan-dim, #1a4a4a); }
+.gh-badge-archived { color: var(--grey); border-color: var(--grey-dark, #333); }
+.gh-badge-fork { color: var(--magenta); border-color: var(--magenta-dim, #4a1a4a); }
+
+.gh-repo-desc { font-size: 0.7rem; color: var(--grey-light, #999); margin-bottom: 0.4rem; line-height: 1.4; }
+
+.gh-repo-meta { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.gh-meta-item { font-size: 0.6rem; color: var(--grey, #666); }
+.gh-lang { color: var(--amber); }
+
+.gh-local-path {
+  margin-top: 0.4rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid var(--grey-dark, #222);
+  font-size: 0.55rem;
+  color: var(--green-dim, #1a4a1a);
+  font-family: monospace;
+}
+
 /* ── Connections Graph (Phase 3) ─────────────────────────────────── */
 
 .graph-layout {
@@ -3576,6 +3873,44 @@ a.clickable-card-link:hover .pulse-card-name {
 
 .card-process-dot.failed {
   background: var(--red);
+}
+
+.card-port-label {
+  color: var(--cyan);
+  font-family: 'PressStart2P', monospace;
+  font-size: 0.55rem;
+  margin-left: 2px;
+}
+
+.card-action-btn.service-start {
+  border-color: var(--green-dim);
+  color: var(--green);
+  font-size: 0.85rem;
+  padding: 2px 7px;
+}
+
+.card-action-btn.service-start:hover {
+  border-color: var(--green);
+  background: var(--green-dim);
+  box-shadow: 0 0 6px var(--green-glow);
+}
+
+.card-action-btn.service-stop {
+  border-color: var(--red);
+  color: var(--red);
+  font-size: 0.85rem;
+  padding: 2px 7px;
+}
+
+.card-action-btn.service-stop:hover {
+  border-color: var(--red);
+  background: rgba(255, 68, 68, 0.15);
+  box-shadow: 0 0 6px var(--red);
+}
+
+.card-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .card-process-dot.starting {

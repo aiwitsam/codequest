@@ -37,6 +37,10 @@ from codequest.deps import (
     scan_all as deps_scan_all,
     load_cache as deps_load_cache,
     save_cache as deps_save_cache,
+    plan_updates as deps_plan_updates,
+    execute_updates as deps_execute_updates,
+    generate_lock_file as deps_generate_lock,
+    calculate_health_score as deps_health_score,
 )
 from codequest.connections import (
     analyze_all as connections_analyze,
@@ -93,6 +97,7 @@ def _project_to_dict(proj: ProjectInfo) -> dict:
         "is_claude_made": proj.is_claude_made,
         "has_github": proj.has_github,
         "detected_run_commands": proj.detected_run_commands,
+        "detected_port": proj.detected_port,
         "description": description,
     }
 
@@ -450,10 +455,24 @@ def create_app() -> Flask:
         project_dicts = [_project_to_dict(p) for p in projects]
 
         # Annotate with favorites, tags, and run command availability
+        service_ports = config.get("ops", {}).get("service_ports", {})
+        # Batch-check systemd status for whitelisted services
+        systemd_statuses = {}
+        for svc_name in service_ports:
+            systemd_statuses[svc_name] = ops_services._get_systemctl_status(svc_name)
+
         for pd in project_dicts:
             pd["is_favorite"] = pd["name"] in favorites
             pd["tags"] = tags.get(pd["name"], [])
             pd["has_run_commands"] = bool(pd.get("detected_run_commands"))
+            pd["web_url"] = _resolve_web_url(pd["name"], pd.get("detected_port"))
+            # Systemd service info
+            if pd["name"] in service_ports:
+                pd["systemd_service"] = pd["name"]
+                pd["systemd_status"] = systemd_statuses.get(pd["name"], "unknown")
+            else:
+                pd["systemd_service"] = None
+                pd["systemd_status"] = None
 
         # Sort favorites to top
         project_dicts.sort(key=lambda p: (not p["is_favorite"], p["name"].lower()))
@@ -1060,6 +1079,64 @@ def create_app() -> Flask:
         cache = deps_load_cache()
         return jsonify(cache)
 
+    @app.route("/api/deps/plan/<name>")
+    def api_deps_plan(name):
+        """Return update plan for a project."""
+        cache = deps_load_cache()
+        if name not in cache:
+            return jsonify({"error": f"Project '{name}' not in cache"}), 404
+        severity = request.args.get("severity")
+        plan = deps_plan_updates(name, cache, severity_filter=severity)
+        return jsonify(plan)
+
+    @app.route("/api/deps/fix/<name>", methods=["POST"])
+    def api_deps_fix(name):
+        """Execute dependency updates for a project."""
+        cache = deps_load_cache()
+        if name not in cache:
+            return jsonify({"error": f"Project '{name}' not in cache"}), 404
+        data = request.get_json(silent=True) or {}
+        severity = data.get("severity")
+        dry_run = data.get("dry_run", False)
+        result = deps_execute_updates(
+            name, cache, severity_filter=severity, dry_run=dry_run
+        )
+        return jsonify(result)
+
+    @app.route("/api/deps/lock/<name>", methods=["POST"])
+    def api_deps_lock(name):
+        """Generate lock file for a project."""
+        projects = get_projects()
+        proj = next((p for p in projects if p.name == name), None)
+        if not proj:
+            return jsonify({"error": f"Project '{name}' not found"}), 404
+        result = deps_generate_lock(str(proj.path), proj.project_type)
+        return jsonify(result)
+
+    @app.route("/api/deps/health/<name>")
+    def api_deps_health(name):
+        """Return health score for a project."""
+        projects = get_projects()
+        proj = next((p for p in projects if p.name == name), None)
+        if not proj:
+            return jsonify({"error": f"Project '{name}' not found"}), 404
+        cache = deps_load_cache()
+        score = deps_health_score(name, str(proj.path), proj.project_type, cache)
+        return jsonify(score)
+
+    @app.route("/api/deps/health")
+    def api_deps_health_all():
+        """Return health scores for all scannable projects."""
+        projects = get_projects()
+        cache = deps_load_cache()
+        scores = {}
+        for p in projects:
+            if p.project_type in ("Python", "Node"):
+                scores[p.name] = deps_health_score(
+                    p.name, str(p.path), p.project_type, cache
+                )
+        return jsonify(scores)
+
     # ------------------------------------------------------------------
     # Connections API (Phase 3)
     # ------------------------------------------------------------------
@@ -1316,6 +1393,16 @@ def create_app() -> Flask:
         """Security dashboard page."""
         overview = ops_security.get_security_overview()
         return render_template("ops/security.html", overview=overview)
+
+    @app.route("/ops/system")
+    def ops_system_page():
+        """System updates dashboard page."""
+        return render_template("ops/system.html")
+
+    @app.route("/ops/github")
+    def ops_github_page():
+        """GitHub repos dashboard page."""
+        return render_template("ops/github.html")
 
     # ------------------------------------------------------------------
     # AI Toolkit API endpoints
@@ -1655,6 +1742,18 @@ def create_app() -> Flask:
         """Service status JSON."""
         return jsonify({"services": ops_services.get_unified_services(process_mgr)})
 
+    @app.route("/api/ops/services/<name>/start", methods=["POST"])
+    def api_ops_start(name):
+        """Start a service."""
+        success, msg = ops_services.start_service(name)
+        return jsonify({"success": success, "message": msg, "error": "" if success else msg})
+
+    @app.route("/api/ops/services/<name>/stop", methods=["POST"])
+    def api_ops_stop(name):
+        """Stop a service."""
+        success, msg = ops_services.stop_service(name)
+        return jsonify({"success": success, "message": msg, "error": "" if success else msg})
+
     @app.route("/api/ops/services/<name>/restart", methods=["POST"])
     def api_ops_restart(name):
         """Restart a service."""
@@ -1688,6 +1787,51 @@ def create_app() -> Flask:
         """Report file list."""
         overview = ops_security.get_security_overview()
         return jsonify({"reports": overview["reports"]})
+
+    # ------------------------------------------------------------------
+    # System Updates API
+    # ------------------------------------------------------------------
+
+    @app.route("/api/ops/system")
+    def api_ops_system():
+        """Return cached system scan data."""
+        from codequest.ops.system import load_cache as sys_load_cache
+        cache = sys_load_cache()
+        return jsonify(cache)
+
+    @app.route("/api/ops/system/scan", methods=["POST"])
+    def api_ops_system_scan():
+        """Run a fresh system scan."""
+        from codequest.ops.system import scan_all as sys_scan_all, save_cache as sys_save_cache
+        data = sys_scan_all()
+        sys_save_cache(data)
+        return jsonify(data)
+
+    @app.route("/api/ops/github")
+    def api_ops_github():
+        """Return cached GitHub repos data (cross-referenced with local)."""
+        from codequest.ops.github import load_cache as gh_load_cache, is_cache_fresh as gh_fresh
+        from codequest.ops.github import cross_reference_local
+        cache = gh_load_cache()
+        if cache and gh_fresh(cache):
+            # Re-cross-reference with current local projects
+            projects = get_projects()
+            enriched = cross_reference_local(cache, projects)
+            return jsonify(enriched)
+        return jsonify(cache)
+
+    @app.route("/api/ops/github/scan", methods=["POST"])
+    def api_ops_github_scan():
+        """Scan GitHub repos and cross-reference with local projects."""
+        from codequest.ops.github import scan_repos, cross_reference_local
+        from codequest.ops.github import save_cache as gh_save_cache
+        data = scan_repos()
+        gh_save_cache(data)
+        if data.get("error"):
+            return jsonify(data)
+        projects = get_projects()
+        enriched = cross_reference_local(data, projects)
+        return jsonify(enriched)
 
     # ------------------------------------------------------------------
     # Error handlers

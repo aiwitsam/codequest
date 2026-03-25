@@ -25,6 +25,11 @@
   <span class="dep-summary-item">Loading...</span>
 </div>
 
+<!-- Health Score Summary -->
+<div class="dep-health-summary" id="dep-health-summary" style="display: none;">
+  <span class="dep-health-avg" id="dep-health-avg"></span>
+</div>
+
 <!-- Scan Progress -->
 <div class="scan-progress" id="scan-progress" style="display: none;">
   <div class="scan-progress-bar">
@@ -45,12 +50,20 @@
 (function() {
   var accordion = document.getElementById("dep-accordion");
   var summaryBar = document.getElementById("dep-summary");
+  var healthSummary = document.getElementById("dep-health-summary");
+  var healthAvg = document.getElementById("dep-health-avg");
   var scanBtn = document.getElementById("dep-scan-btn");
   var progressEl = document.getElementById("scan-progress");
   var progressFill = document.getElementById("scan-progress-fill");
   var progressText = document.getElementById("scan-progress-text");
   var filterSeverity = document.getElementById("dep-filter-severity");
   var filterType = document.getElementById("dep-filter-type");
+
+  var healthScores = {};
+
+  function clearElement(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+  }
 
   function buildTableHeader() {
     var thead = document.createElement("thead");
@@ -62,6 +75,244 @@
     });
     thead.appendChild(tr);
     return thead;
+  }
+
+  function gradeColor(grade) {
+    var map = { A: "var(--green)", B: "var(--cyan)", C: "var(--amber)", D: "var(--magenta)", F: "var(--red)" };
+    return map[grade] || "var(--grey)";
+  }
+
+  function createHealthBadge(name) {
+    var badge = document.createElement("span");
+    badge.className = "dep-health-badge";
+    badge.textContent = "...";
+    badge.title = "Loading health score...";
+    // Update when scores arrive
+    if (healthScores[name]) {
+      var s = healthScores[name];
+      badge.textContent = s.grade;
+      badge.style.color = gradeColor(s.grade);
+      badge.style.borderColor = gradeColor(s.grade);
+      badge.title = s.score + "/100";
+    }
+    badge.setAttribute("data-project", name);
+    return badge;
+  }
+
+  function updateHealthBadges() {
+    var badges = document.querySelectorAll(".dep-health-badge[data-project]");
+    badges.forEach(function(badge) {
+      var name = badge.getAttribute("data-project");
+      if (healthScores[name]) {
+        var s = healthScores[name];
+        badge.textContent = s.grade;
+        badge.style.color = gradeColor(s.grade);
+        badge.style.borderColor = gradeColor(s.grade);
+        badge.title = s.score + "/100";
+      }
+    });
+    // Update portfolio average
+    var scores = Object.values(healthScores);
+    if (scores.length > 0) {
+      var avg = scores.reduce(function(sum, s) { return sum + s.score; }, 0) / scores.length;
+      healthAvg.textContent = "Portfolio Health: " + Math.round(avg) + "/100";
+      healthSummary.style.display = "";
+    }
+  }
+
+  function loadHealthScores() {
+    fetch("/api/deps/health")
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        healthScores = data;
+        updateHealthBadges();
+      })
+      .catch(function() {});
+  }
+
+  function createActionButtons(projName) {
+    var row = document.createElement("div");
+    row.className = "dep-actions";
+
+    var planBtn = document.createElement("button");
+    planBtn.className = "btn btn-sm btn-outline";
+    planBtn.textContent = "Plan Updates";
+    planBtn.onclick = function(e) { e.stopPropagation(); showPlan(projName, row.parentNode); };
+
+    var fixPatchBtn = document.createElement("button");
+    fixPatchBtn.className = "btn btn-sm btn-green";
+    fixPatchBtn.textContent = "Fix Patch";
+    fixPatchBtn.onclick = function(e) { e.stopPropagation(); executeFix(projName, "patch", row.parentNode); };
+
+    var fixAllBtn = document.createElement("button");
+    fixAllBtn.className = "btn btn-sm btn-amber";
+    fixAllBtn.textContent = "Fix All";
+    fixAllBtn.onclick = function(e) {
+      e.stopPropagation();
+      if (confirm("Update all packages for " + projName + "? Major updates may break things.")) {
+        executeFix(projName, null, row.parentNode);
+      }
+    };
+
+    var lockBtn = document.createElement("button");
+    lockBtn.className = "btn btn-sm btn-cyan";
+    lockBtn.textContent = "Gen Lock";
+    lockBtn.onclick = function(e) { e.stopPropagation(); generateLock(projName, row.parentNode); };
+
+    row.appendChild(planBtn);
+    row.appendChild(fixPatchBtn);
+    row.appendChild(fixAllBtn);
+    row.appendChild(lockBtn);
+    return row;
+  }
+
+  function getOrCreateResultsPanel(parent) {
+    var panel = parent.querySelector(".dep-results-panel");
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.className = "dep-results-panel";
+      parent.appendChild(panel);
+    }
+    return panel;
+  }
+
+  function showPlan(name, bodyEl) {
+    var panel = getOrCreateResultsPanel(bodyEl);
+    panel.textContent = "Loading plan...";
+    fetch("/api/deps/plan/" + encodeURIComponent(name))
+      .then(function(r) { return r.json(); })
+      .then(function(plan) {
+        clearElement(panel);
+        var updates = plan.updates || [];
+        if (updates.length === 0) {
+          panel.textContent = "No updates available.";
+          return;
+        }
+        var s = plan.summary;
+        var sumLine = document.createElement("div");
+        sumLine.className = "dep-results-summary";
+        sumLine.textContent = s.total + " packages: " + s.auto_safe + " safe, " +
+          s.needs_review + " review, " + s.breaking_risk + " breaking";
+        panel.appendChild(sumLine);
+
+        var table = document.createElement("table");
+        table.className = "dep-table";
+        var thead = document.createElement("thead");
+        var headRow = document.createElement("tr");
+        ["Package", "Current", "Latest", "Risk", "Command"].forEach(function(t) {
+          var th = document.createElement("th");
+          th.textContent = t;
+          headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+        var tbody = document.createElement("tbody");
+        updates.forEach(function(u) {
+          var tr = document.createElement("tr");
+          var cells = [u.name, u.current, u.latest, u.risk, u.command];
+          cells.forEach(function(val, i) {
+            var td = document.createElement("td");
+            if (i === 3) {
+              var span = document.createElement("span");
+              span.className = "severity-label severity-" + (u.severity || "patch");
+              span.textContent = val;
+              td.appendChild(span);
+            } else if (i === 4) {
+              td.style.fontSize = "0.7em";
+              td.style.opacity = "0.8";
+              td.textContent = val;
+            } else {
+              td.textContent = val;
+            }
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        panel.appendChild(table);
+      })
+      .catch(function(err) { panel.textContent = "Error: " + err.message; });
+  }
+
+  function executeFix(name, severity, bodyEl) {
+    var panel = getOrCreateResultsPanel(bodyEl);
+    var label = severity ? severity + " only" : "all severities";
+    panel.textContent = "Updating " + name + " (" + label + ")...";
+
+    var body = {};
+    if (severity) body.severity = severity;
+
+    fetch("/api/deps/fix/" + encodeURIComponent(name), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(result) {
+        clearElement(panel);
+        var sumLine = document.createElement("div");
+        sumLine.className = "dep-results-summary";
+        sumLine.textContent = result.summary || "Done";
+        panel.appendChild(sumLine);
+
+        (result.results || []).forEach(function(r) {
+          var line = document.createElement("div");
+          var icon = r.status === "success" ? "[+]" : "[x]";
+          line.className = "dep-result-line dep-result-" + r.status;
+          line.textContent = icon + " " + r.name + " " + r.from_version + " -> " + r.to_version + " (" + r.risk + ")";
+          panel.appendChild(line);
+          if (r.status === "failed" && r.output) {
+            var errLine = document.createElement("div");
+            errLine.className = "dep-result-error";
+            errLine.textContent = "    " + r.output.substring(0, 120);
+            panel.appendChild(errLine);
+          }
+        });
+
+        if (result.lock_file) {
+          var lockLine = document.createElement("div");
+          lockLine.className = "dep-result-line";
+          lockLine.textContent = "Lock file: " + result.lock_file.status +
+            (result.lock_file.package_count ? " (" + result.lock_file.package_count + " pkgs)" : "");
+          panel.appendChild(lockLine);
+        }
+        if (result.tests) {
+          var testLine = document.createElement("div");
+          testLine.className = "dep-result-line dep-result-" + (result.tests.passed ? "success" : "failed");
+          testLine.textContent = "Tests: " + (result.tests.available ?
+            (result.tests.passed ? "PASSED" : "FAILED") : "no test suite");
+          panel.appendChild(testLine);
+        }
+
+        // Refresh data after fix
+        setTimeout(function() { loadData(); loadHealthScores(); }, 1000);
+      })
+      .catch(function(err) { panel.textContent = "Error: " + err.message; });
+  }
+
+  function generateLock(name, bodyEl) {
+    var panel = getOrCreateResultsPanel(bodyEl);
+    panel.textContent = "Generating lock file...";
+    fetch("/api/deps/lock/" + encodeURIComponent(name), { method: "POST" })
+      .then(function(r) { return r.json(); })
+      .then(function(result) {
+        clearElement(panel);
+        var line = document.createElement("div");
+        line.className = "dep-results-summary";
+        var icon = result.status === "failed" ? "[x]" : "[+]";
+        line.textContent = icon + " Lock file " + result.status;
+        if (result.package_count) line.textContent += " (" + result.package_count + " packages frozen)";
+        if (result.lock_file) line.textContent += ": " + result.lock_file;
+        panel.appendChild(line);
+        if (result.error) {
+          var errLine = document.createElement("div");
+          errLine.className = "dep-result-error";
+          errLine.textContent = result.error;
+          panel.appendChild(errLine);
+        }
+        setTimeout(loadHealthScores, 500);
+      })
+      .catch(function(err) { panel.textContent = "Error: " + err.message; });
   }
 
   function renderDeps(data) {
@@ -104,6 +355,9 @@
       header.className = "dep-section-header";
       header.onclick = function() { section.classList.toggle("open"); };
 
+      // Health badge
+      header.appendChild(createHealthBadge(proj.name));
+
       var nameSpan = document.createElement("span");
       nameSpan.className = "dep-project-name";
       nameSpan.textContent = proj.name;
@@ -141,6 +395,11 @@
 
       var body = document.createElement("div");
       body.className = "dep-section-body";
+
+      // Action buttons
+      if (outdated.length > 0) {
+        body.appendChild(createActionButtons(proj.name));
+      }
 
       if (outdated.length === 0) {
         var empty = document.createElement("div");
@@ -222,6 +481,7 @@
           progressEl.style.display = "none";
           scanBtn.disabled = false;
           loadData();
+          loadHealthScores();
         }
       })
       .catch(function() {
@@ -242,13 +502,11 @@
         if (data.started) {
           pollScan();
         } else {
-          showToast(data.error || "Scan failed", "error");
           scanBtn.disabled = false;
           progressEl.style.display = "none";
         }
       })
       .catch(function(err) {
-        showToast("Network error: " + err.message, "error");
         scanBtn.disabled = false;
         progressEl.style.display = "none";
       });
@@ -258,6 +516,7 @@
   filterType.addEventListener("change", loadData);
 
   loadData();
+  loadHealthScores();
 })();
 </script>
 {% endblock %}

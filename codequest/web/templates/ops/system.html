@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% block title %}System Updates - CodeQuest{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">System Updates</h1>
+  <div class="page-actions">
+    <button class="btn btn-sm btn-cyan" id="sys-scan-btn" onclick="scanSystem()">Check for Updates</button>
+    <button class="btn btn-sm btn-green" id="sys-update-btn" onclick="showUpdateGuide()" style="display:none">How to Update</button>
+  </div>
+</div>
+
+<!-- System Info Bar -->
+<div class="sys-info-bar" id="sys-info-bar">
+  <div class="sys-info-item">
+    <span class="sys-label">OS</span>
+    <span class="sys-value" id="sys-os">...</span>
+  </div>
+  <div class="sys-info-item">
+    <span class="sys-label">Kernel</span>
+    <span class="sys-value" id="sys-kernel">...</span>
+  </div>
+  <div class="sys-info-item">
+    <span class="sys-label">Uptime</span>
+    <span class="sys-value" id="sys-uptime">...</span>
+  </div>
+</div>
+
+<!-- Update Summary -->
+<div class="sys-update-summary" id="sys-summary" style="display:none">
+  <div class="sys-stat">
+    <span class="sys-stat-number" id="sys-total">0</span>
+    <span class="sys-stat-label">Updates Available</span>
+  </div>
+  <div class="sys-stat sys-stat-security">
+    <span class="sys-stat-number" id="sys-security">0</span>
+    <span class="sys-stat-label">Security</span>
+  </div>
+  <div class="sys-stat sys-stat-critical">
+    <span class="sys-stat-number" id="sys-critical">0</span>
+    <span class="sys-stat-label">Critical</span>
+  </div>
+  <div class="sys-stat">
+    <span class="sys-stat-number" id="sys-regular">0</span>
+    <span class="sys-stat-label">Regular</span>
+  </div>
+</div>
+
+<!-- Disk Usage -->
+<div class="sys-section" id="sys-disk-section" style="display:none">
+  <h2 class="sys-section-title">Disk Usage</h2>
+  <div id="sys-disk-bars"></div>
+</div>
+
+<!-- Package Updates -->
+<div class="sys-section" id="sys-packages-section" style="display:none">
+  <h2 class="sys-section-title">Available Updates</h2>
+  <div class="sys-filter-row">
+    <select id="sys-filter" class="sort-select">
+      <option value="all">All Packages</option>
+      <option value="security">Security Only</option>
+      <option value="critical">Critical Only</option>
+      <option value="regular">Regular Only</option>
+      <option value="library">Libraries Only</option>
+    </select>
+  </div>
+  <div id="sys-package-list"></div>
+</div>
+
+<!-- System Tools -->
+<div class="sys-section" id="sys-tools-section" style="display:none">
+  <h2 class="sys-section-title">Installed Tools</h2>
+  <div class="sys-tools-grid" id="sys-tools-grid"></div>
+</div>
+
+<!-- Update Guide Modal -->
+<div class="sys-guide" id="sys-guide" style="display:none">
+  <div class="sys-guide-content">
+    <h2 class="sys-section-title">How to Update Your System</h2>
+    <div class="sys-guide-step">
+      <div class="sys-step-number">1</div>
+      <div class="sys-step-body">
+        <h3>Quick Update (Safe)</h3>
+        <p>Updates all packages to their latest versions. This is safe to run anytime.</p>
+        <code class="sys-command">sudo apt update && sudo apt upgrade -y</code>
+        <p class="sys-step-hint">This downloads the latest package lists and installs available updates.</p>
+      </div>
+    </div>
+    <div class="sys-guide-step">
+      <div class="sys-step-number">2</div>
+      <div class="sys-step-body">
+        <h3>Full Update (Thorough)</h3>
+        <p>Also installs updates that need new packages or remove old ones.</p>
+        <code class="sys-command">sudo apt update && sudo apt full-upgrade -y</code>
+        <p class="sys-step-hint">Use this when the quick update says packages were "held back".</p>
+      </div>
+    </div>
+    <div class="sys-guide-step">
+      <div class="sys-step-number">3</div>
+      <div class="sys-step-body">
+        <h3>Clean Up</h3>
+        <p>Remove old packages that are no longer needed.</p>
+        <code class="sys-command">sudo apt autoremove -y && sudo apt autoclean</code>
+        <p class="sys-step-hint">Frees up disk space by removing leftover dependencies.</p>
+      </div>
+    </div>
+    <div class="sys-guide-step">
+      <div class="sys-step-number">?</div>
+      <div class="sys-step-body">
+        <h3>What Does "sudo" Mean?</h3>
+        <p><strong>sudo</strong> = "Super User DO" — it runs the command as an administrator. Your system will ask for your password. This is normal and required for installing updates.</p>
+      </div>
+    </div>
+    <button class="btn btn-sm btn-cyan" onclick="document.getElementById('sys-guide').style.display='none'">Got It</button>
+  </div>
+</div>
+
+<!-- Loading -->
+<div class="sys-loading" id="sys-loading">
+  <p>Click "Check for Updates" to scan your system, or loading cached data...</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  var allData = null;
+  var filter = document.getElementById("sys-filter");
+
+  function clearEl(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+
+  function renderSystemInfo(info) {
+    document.getElementById("sys-os").textContent = info.os || "?";
+    document.getElementById("sys-kernel").textContent = info.kernel || "?";
+    document.getElementById("sys-uptime").textContent = info.uptime || "?";
+  }
+
+  function renderDisk(disks) {
+    var container = document.getElementById("sys-disk-bars");
+    clearEl(container);
+    if (!disks || disks.length === 0) return;
+
+    document.getElementById("sys-disk-section").style.display = "";
+    disks.forEach(function(d) {
+      var row = document.createElement("div");
+      row.className = "sys-disk-row";
+
+      var label = document.createElement("span");
+      label.className = "sys-disk-label";
+      label.textContent = d.mount;
+
+      var barOuter = document.createElement("div");
+      barOuter.className = "sys-disk-bar-outer";
+      var barFill = document.createElement("div");
+      barFill.className = "sys-disk-bar-fill";
+      var pct = parseInt(d.percent) || 0;
+      barFill.style.width = pct + "%";
+      if (pct > 90) barFill.classList.add("disk-danger");
+      else if (pct > 75) barFill.classList.add("disk-warn");
+      barOuter.appendChild(barFill);
+
+      var info = document.createElement("span");
+      info.className = "sys-disk-info";
+      info.textContent = d.used + " / " + d.size + " (" + d.percent + ")";
+
+      row.appendChild(label);
+      row.appendChild(barOuter);
+      row.appendChild(info);
+      container.appendChild(row);
+    });
+  }
+
+  function renderPackages(packages, filterVal) {
+    var container = document.getElementById("sys-package-list");
+    clearEl(container);
+    if (!packages || packages.length === 0) {
+      container.textContent = "All packages are up to date!";
+      return;
+    }
+
+    var filtered = packages;
+    if (filterVal !== "all") {
+      filtered = packages.filter(function(p) { return p.importance === filterVal; });
+    }
+
+    if (filtered.length === 0) {
+      container.textContent = "No packages match this filter.";
+      return;
+    }
+
+    var table = document.createElement("table");
+    table.className = "dep-table";
+    var thead = document.createElement("thead");
+    var tr = document.createElement("tr");
+    ["Package", "Current", "Available", "Type", "Source"].forEach(function(t) {
+      var th = document.createElement("th");
+      th.textContent = t;
+      tr.appendChild(th);
+    });
+    thead.appendChild(tr);
+    table.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+    filtered.forEach(function(pkg) {
+      var row = document.createElement("tr");
+      row.className = "dep-row";
+
+      var tdName = document.createElement("td");
+      tdName.textContent = pkg.name;
+      var tdCur = document.createElement("td");
+      tdCur.textContent = pkg.current;
+      var tdAvail = document.createElement("td");
+      tdAvail.textContent = pkg.available;
+      var tdType = document.createElement("td");
+      var badge = document.createElement("span");
+      badge.className = "severity-label sys-imp-" + pkg.importance;
+      badge.textContent = pkg.importance;
+      tdType.appendChild(badge);
+      var tdSource = document.createElement("td");
+      tdSource.textContent = pkg.source;
+      tdSource.style.fontSize = "0.7em";
+      tdSource.style.opacity = "0.7";
+
+      row.appendChild(tdName);
+      row.appendChild(tdCur);
+      row.appendChild(tdAvail);
+      row.appendChild(tdType);
+      row.appendChild(tdSource);
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    container.appendChild(table);
+  }
+
+  function renderTools(tools) {
+    var grid = document.getElementById("sys-tools-grid");
+    clearEl(grid);
+    if (!tools || tools.length === 0) return;
+
+    document.getElementById("sys-tools-section").style.display = "";
+    tools.forEach(function(t) {
+      var card = document.createElement("div");
+      card.className = "sys-tool-card" + (t.installed ? "" : " sys-tool-missing");
+
+      var name = document.createElement("div");
+      name.className = "sys-tool-name";
+      name.textContent = t.name;
+
+      var ver = document.createElement("div");
+      ver.className = "sys-tool-version";
+      ver.textContent = t.version;
+
+      card.appendChild(name);
+      card.appendChild(ver);
+      grid.appendChild(card);
+    });
+  }
+
+  function renderAll(data) {
+    allData = data;
+    document.getElementById("sys-loading").style.display = "none";
+
+    if (data.system_info) renderSystemInfo(data.system_info);
+
+    var apt = data.apt_updates || {};
+    document.getElementById("sys-total").textContent = apt.total || 0;
+    document.getElementById("sys-security").textContent = apt.security || 0;
+    document.getElementById("sys-critical").textContent = apt.critical || 0;
+    document.getElementById("sys-regular").textContent = apt.regular || 0;
+    document.getElementById("sys-summary").style.display = "";
+
+    if (apt.total > 0) {
+      document.getElementById("sys-update-btn").style.display = "";
+    }
+
+    if (data.system_info && data.system_info.disk_usage) {
+      renderDisk(data.system_info.disk_usage);
+    }
+
+    if (apt.packages) {
+      document.getElementById("sys-packages-section").style.display = "";
+      renderPackages(apt.packages, filter.value);
+    }
+
+    if (data.tools) renderTools(data.tools);
+  }
+
+  function loadCached() {
+    fetch("/api/ops/system")
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data && data.system_info) renderAll(data);
+      })
+      .catch(function() {});
+  }
+
+  window.scanSystem = function() {
+    var btn = document.getElementById("sys-scan-btn");
+    btn.disabled = true;
+    btn.textContent = "Scanning...";
+    document.getElementById("sys-loading").style.display = "";
+    document.getElementById("sys-loading").textContent = "Scanning system... this may take a moment.";
+
+    fetch("/api/ops/system/scan", { method: "POST" })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        renderAll(data);
+        btn.disabled = false;
+        btn.textContent = "Check for Updates";
+      })
+      .catch(function(err) {
+        document.getElementById("sys-loading").textContent = "Error: " + err.message;
+        btn.disabled = false;
+        btn.textContent = "Check for Updates";
+      });
+  };
+
+  window.showUpdateGuide = function() {
+    document.getElementById("sys-guide").style.display = "";
+  };
+
+  filter.addEventListener("change", function() {
+    if (allData && allData.apt_updates) {
+      renderPackages(allData.apt_updates.packages, filter.value);
+    }
+  });
+
+  loadCached();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block title %}GitHub Repos - CodeQuest{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">GitHub Repos</h1>
+  <div class="page-actions">
+    <select id="gh-filter" class="sort-select">
+      <option value="all">All Repos</option>
+      <option value="cloned">Cloned Locally</option>
+      <option value="github-only">GitHub Only</option>
+      <option value="public">Public</option>
+      <option value="private">Private</option>
+      <option value="archived">Archived</option>
+    </select>
+    <button class="btn btn-sm btn-cyan" id="gh-scan-btn" onclick="scanGithub()">Refresh</button>
+  </div>
+</div>
+
+<!-- Summary Bar -->
+<div class="gh-summary" id="gh-summary" style="display:none">
+  <div class="gh-stat">
+    <span class="gh-stat-number" id="gh-total">0</span>
+    <span class="gh-stat-label">Total</span>
+  </div>
+  <div class="gh-stat gh-stat-public">
+    <span class="gh-stat-number" id="gh-public">0</span>
+    <span class="gh-stat-label">Public</span>
+  </div>
+  <div class="gh-stat gh-stat-private">
+    <span class="gh-stat-number" id="gh-private">0</span>
+    <span class="gh-stat-label">Private</span>
+  </div>
+  <div class="gh-stat gh-stat-cloned">
+    <span class="gh-stat-number" id="gh-cloned">0</span>
+    <span class="gh-stat-label">Cloned</span>
+  </div>
+  <div class="gh-stat gh-stat-remote">
+    <span class="gh-stat-number" id="gh-remote">0</span>
+    <span class="gh-stat-label">GitHub Only</span>
+  </div>
+</div>
+
+<!-- Repo Grid -->
+<div class="gh-repo-grid" id="gh-repo-grid">
+  <div class="sys-loading">Click "Refresh" to scan GitHub, or loading cached data...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  var grid = document.getElementById("gh-repo-grid");
+  var filterEl = document.getElementById("gh-filter");
+  var allData = null;
+
+  function clearEl(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+
+  function timeAgo(dateStr) {
+    if (!dateStr) return "?";
+    var d = new Date(dateStr);
+    var now = new Date();
+    var diff = Math.floor((now - d) / 1000);
+    if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+    if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+    if (diff < 2592000) return Math.floor(diff / 86400) + "d ago";
+    return d.toISOString().slice(0, 10);
+  }
+
+  function diskSize(kb) {
+    if (!kb) return "";
+    if (kb < 1024) return kb + " KB";
+    return (kb / 1024).toFixed(1) + " MB";
+  }
+
+  function renderRepos(data, filterVal) {
+    clearEl(grid);
+    var repos = data.repos || [];
+
+    // Filter
+    if (filterVal === "cloned") repos = repos.filter(function(r) { return r.cloned_locally; });
+    else if (filterVal === "github-only") repos = repos.filter(function(r) { return !r.cloned_locally; });
+    else if (filterVal === "public") repos = repos.filter(function(r) { return r.visibility === "public"; });
+    else if (filterVal === "private") repos = repos.filter(function(r) { return r.visibility === "private"; });
+    else if (filterVal === "archived") repos = repos.filter(function(r) { return r.is_archived; });
+
+    if (repos.length === 0) {
+      grid.textContent = "No repos match this filter.";
+      return;
+    }
+
+    repos.forEach(function(repo) {
+      var card = document.createElement("div");
+      card.className = "gh-repo-card";
+      if (repo.is_archived) card.classList.add("gh-archived");
+
+      // Header row: name + badges
+      var header = document.createElement("div");
+      header.className = "gh-repo-header";
+
+      var name = document.createElement("a");
+      name.className = "gh-repo-name";
+      name.href = repo.url;
+      name.target = "_blank";
+      name.textContent = repo.name;
+      header.appendChild(name);
+
+      var badges = document.createElement("div");
+      badges.className = "gh-badges";
+
+      var visBadge = document.createElement("span");
+      visBadge.className = "gh-badge gh-badge-" + repo.visibility;
+      visBadge.textContent = repo.visibility;
+      badges.appendChild(visBadge);
+
+      if (repo.cloned_locally) {
+        var localBadge = document.createElement("span");
+        localBadge.className = "gh-badge gh-badge-local";
+        localBadge.textContent = "LOCAL";
+        localBadge.title = repo.local_path;
+        badges.appendChild(localBadge);
+      }
+
+      if (repo.is_archived) {
+        var archBadge = document.createElement("span");
+        archBadge.className = "gh-badge gh-badge-archived";
+        archBadge.textContent = "ARCHIVED";
+        badges.appendChild(archBadge);
+      }
+
+      if (repo.is_fork) {
+        var forkBadge = document.createElement("span");
+        forkBadge.className = "gh-badge gh-badge-fork";
+        forkBadge.textContent = "FORK";
+        badges.appendChild(forkBadge);
+      }
+
+      header.appendChild(badges);
+      card.appendChild(header);
+
+      // Description
+      if (repo.description) {
+        var desc = document.createElement("div");
+        desc.className = "gh-repo-desc";
+        desc.textContent = repo.description;
+        card.appendChild(desc);
+      }
+
+      // Meta row
+      var meta = document.createElement("div");
+      meta.className = "gh-repo-meta";
+
+      if (repo.language) {
+        var lang = document.createElement("span");
+        lang.className = "gh-meta-item gh-lang";
+        lang.textContent = repo.language;
+        meta.appendChild(lang);
+      }
+
+      var pushed = document.createElement("span");
+      pushed.className = "gh-meta-item";
+      pushed.textContent = "pushed " + timeAgo(repo.pushed_at);
+      meta.appendChild(pushed);
+
+      if (repo.disk_kb) {
+        var size = document.createElement("span");
+        size.className = "gh-meta-item";
+        size.textContent = diskSize(repo.disk_kb);
+        meta.appendChild(size);
+      }
+
+      if (repo.stars > 0) {
+        var stars = document.createElement("span");
+        stars.className = "gh-meta-item";
+        stars.textContent = repo.stars + " star" + (repo.stars > 1 ? "s" : "");
+        meta.appendChild(stars);
+      }
+
+      card.appendChild(meta);
+
+      // Local path if cloned
+      if (repo.cloned_locally && repo.local_path) {
+        var localInfo = document.createElement("div");
+        localInfo.className = "gh-local-path";
+        localInfo.textContent = repo.local_path;
+        card.appendChild(localInfo);
+      }
+
+      grid.appendChild(card);
+    });
+  }
+
+  function renderAll(data) {
+    allData = data;
+    document.getElementById("gh-total").textContent = data.total || 0;
+    document.getElementById("gh-public").textContent = data.public || 0;
+    document.getElementById("gh-private").textContent = data.private || 0;
+    document.getElementById("gh-cloned").textContent = data.cloned_locally || 0;
+    document.getElementById("gh-remote").textContent = data.github_only || 0;
+    document.getElementById("gh-summary").style.display = "";
+    renderRepos(data, filterEl.value);
+  }
+
+  function loadCached() {
+    fetch("/api/ops/github")
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data && data.repos && data.repos.length > 0) renderAll(data);
+      })
+      .catch(function() {});
+  }
+
+  window.scanGithub = function() {
+    var btn = document.getElementById("gh-scan-btn");
+    btn.disabled = true;
+    btn.textContent = "Scanning...";
+    clearEl(grid);
+    grid.textContent = "Scanning GitHub repos...";
+
+    fetch("/api/ops/github/scan", { method: "POST" })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.error) {
+          grid.textContent = "Error: " + data.error;
+        } else {
+          renderAll(data);
+        }
+        btn.disabled = false;
+        btn.textContent = "Refresh";
+      })
+      .catch(function(err) {
+        grid.textContent = "Error: " + err.message;
+        btn.disabled = false;
+        btn.textContent = "Refresh";
+      });
+  };
+
+  filterEl.addEventListener("change", function() {
+    if (allData) renderRepos(allData, filterEl.value);
+  });
+
+  loadCached();
+})();
+</script>
+{% endblock %}
