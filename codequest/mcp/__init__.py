@@ -1,0 +1,1 @@
+"""CodeQuest MCP server package."""
